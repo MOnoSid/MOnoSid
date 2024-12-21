@@ -11,14 +11,5 @@ Prototype Features
  Goal of the Prototype
 The goal is to create a working text-based chatbot that provides therapeutic conversations. This prototype will test the concept of personalized AI therapy and help identify areas for improvement before adding more advanced features.
 
-Features Coming in Future Versions
-- Face-to-face conversation (video chat with Sky)
-- Background chatting (chat while using other apps)
-- Multilingual support
-- Media Sharing (share videos, articles, etc.)
-- Customizable Avatar (choose Sky's face and voice)
-- Inspirational Audiobooks (Sky will read uplifting content)
-- Group Therapy Sessions (community-based support)
-
 
 
