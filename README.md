@@ -1,6 +1,6 @@
 MonoSid - AI-Powered Therapy App (Prototype)
 
-MonoSid is an AI-powered virtual therapist designed to help people with mental health issues, focusing on depression, anxiety and trauma. This prototype version aims to provide a basic text-based interaction with Sky, the virtual therapist, using GPT-3.5.
+MonoSid is an AI-powered virtual therapist designed to help people with mental health issues, focusing on depression and anxiety. This prototype version aims to provide a basic text-based interaction with Sky, the virtual therapist.
 
 Prototype Features
 - Text-based conversation: Chat with Sky (your virtual therapist) through text-based messages.
