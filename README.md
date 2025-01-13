@@ -1,4 +1,4 @@
-# Sky - AI Therapy Companion
+# MonoSid - AI Therapy Companion
 
 Sky is an innovative AI-powered therapy companion that combines real-time video interaction, natural language processing, emotion detection, and a lifelike digital avatar to provide a supportive and engaging therapeutic experience.
 
