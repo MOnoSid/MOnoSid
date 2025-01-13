@@ -77,7 +77,7 @@ http://localhost:5000
 
 3. Interaction Modes:
 - **Video Mode**: Face-to-face conversations with emotion detection
-- **Avatar Mode**: Interact with Sky's realistic 3D avatar
+- **Avatar Mode**: Interact with Sky's realistic 3D avatar(Under Development)
 - **Voice Mode**: Natural voice conversations with continuous dialogue
 
 4. Features:
@@ -125,7 +125,7 @@ http://localhost:5000
 - No persistent data storage
 - GDPR compliant data handling
 
-## ⚠️ Note on Digital Avatar (Beta)
+## ⚠️ Note on Digital Avatar (Under Development)
 The digital avatar feature is currently in beta and under active development. Current limitations:
 - Avatar generation may take a few moments
 - Some expressions are still being refined
