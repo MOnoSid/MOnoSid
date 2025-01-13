@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MonoSid - Your AI Therapy Companion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@readyplayerme/rpm-sdk@0.1.x/dist/rpm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@readyplayerme/visage@0.1.x/dist/visage.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #6366F1;
+            --secondary-color: #4F46E5;
+            --accent-color: #818CF8;
+            --background-dark: #1E1B4B;
+            --background-light: #312E81;
+        }
+        body {
+            background: linear-gradient(135deg, var(--background-dark) 0%, var(--background-light) 100%);
+            min-height: 100vh;
+        }
+        .chat-container {
+            height: calc(100vh - 240px);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+        }
+        .message-bubble {
+            max-width: 80%;
+            margin: 10px;
+            padding: 15px;
+            border-radius: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .user-message {
+            background: var(--primary-color);
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+        .ai-message {
+            background: var(--background-light);
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        .therapist-avatar {
+            width: 100%;
+            height: 480px;
+            border-radius: 20px;
+            background: var(--background-dark);
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(99, 102, 241, 0.15);
+            position: relative;
+        }
+        #avatar-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #videoFeed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+        .control-button {
+            background: rgba(99, 102, 241, 0.9);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .control-button:hover {
+            background: var(--accent-color);
+            transform: translateY(-2px);
+        }
+        .control-button.recording {
+            background: #EF4444;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        #loading-avatar {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            display: none;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400 mb-4">MonoSid</h1>
+            <p class="text-xl text-indigo-200 mb-4">Your Personal AI Therapy Companion</p>
+            <div class="max-w-2xl mx-auto">
+                <p class="text-gray-300">A safe space for self-expression and emotional support, powered by advanced AI technology.</p>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Video Feed Section -->
+            <div class="video-container">
+                <div id="loading-avatar">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+                    Loading Digital Avatar...
+                </div>
+                <div id="therapistAvatar" class="therapist-avatar">
+                    <div id="avatar-container"></div>
+                    <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="Video Feed" class="rounded-lg">
+                </div>
+                <div class="controls">
+                    <button id="startBtn" class="control-button">
+                        Start Session
+                    </button>
+                    <button id="endBtn" class="control-button bg-red-600 hover:bg-red-700" style="display: none;">
+                        End Session
+                    </button>
+                    <button id="voiceBtn" class="control-button" style="display: none;">
+                        🎤 Voice Input
+                    </button>
+                    <button id="toggleModeBtn" class="control-button">
+                        Switch View
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chat Section -->
+            <div class="bg-opacity-10 bg-white backdrop-filter backdrop-blur-lg rounded-lg p-6 border border-indigo-500/20">
+                <div id="chatBox" class="chat-container overflow-y-auto mb-4 p-4">
+                    <!-- Messages will be added here -->
+                </div>
+                <div class="flex flex-col gap-4">
+                    <div class="text-sm text-indigo-200" id="status">
+                        Click 'Start Session' to begin your therapy session
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="features-grid mt-12">
+            <div class="feature-card">
+                <h3 class="text-xl font-semibold text-indigo-300 mb-2">🧠 AI-Powered Therapy</h3>
+                <p class="text-gray-300">Engage in meaningful conversations with our advanced AI therapist trained to provide empathetic support.</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="text-xl font-semibold text-indigo-300 mb-2">🎭 Digital Avatar</h3>
+                <p class="text-gray-300">Experience a more personal connection with our lifelike digital avatar that responds to your emotions.</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="text-xl font-semibold text-indigo-300 mb-2">🔒 Private & Secure</h3>
+                <p class="text-gray-300">Your conversations are completely private and secure, ensuring a safe space for self-expression.</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="text-xl font-semibold text-indigo-300 mb-2">📊 Emotion Tracking</h3>
+                <p class="text-gray-300">Monitor your emotional well-being with our advanced emotion detection technology.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isListening = false;
+        let isContinuousListening = false;
+        let isVideoMode = true;
+        let avatar = null;
+        let avatarExpression = 'neutral';
+
+        // Initialize ReadyPlayerMe Avatar
+        async function initializeAvatar() {
+            try {
+                const response = await fetch('/avatar/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ gender: 'female' })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    const container = document.getElementById('avatar-container');
+                    
+                    // Initialize the Visage avatar
+                    avatar = new RPM.Visage({
+                        container,
+                        model: data.avatar_url,
+                        animations: {
+                            idle: 'https://models.readyplayer.me/animations/idle.glb',
+                            talking: 'https://models.readyplayer.me/animations/talking.glb'
+                        },
+                        shadows: true,
+                        background: {
+                            color: '#1E1B4B'
+                        }
+                    });
+
+                    // Add initial expression
+                    await avatar.setExpression('neutral');
+                    
+                    // Start idle animation
+                    avatar.playAnimation('idle');
+                }
+            } catch (error) {
+                console.error('Error initializing avatar:', error);
+            }
+        }
+
+        // Update avatar expression based on emotion
+        async function updateAvatarExpression(emotion) {
+            if (avatar && !isVideoMode) {
+                try {
+                    const response = await fetch('/avatar/state');
+                    const state = await response.json();
+                    
+                    if (state.expression !== avatarExpression) {
+                        avatarExpression = state.expression;
+                        await avatar.setExpression(avatarExpression);
+                    }
+                } catch (error) {
+                    console.error('Error updating avatar expression:', error);
+                }
+            }
+        }
+
+        // Initialize avatar when page loads
+        document.addEventListener('DOMContentLoaded', initializeAvatar);
+
+        const chatBox = document.getElementById('chatBox');
+        const startBtn = document.getElementById('startBtn');
+        const endBtn = document.getElementById('endBtn');
+        const voiceBtn = document.getElementById('voiceBtn');
+        const toggleModeBtn = document.getElementById('toggleModeBtn');
+        const status = document.getElementById('status');
+        const videoFeed = document.getElementById('videoFeed');
+        const avatarContainer = document.getElementById('avatar-container');
+
+        const eventSource = new EventSource('/conversation_stream');
+        eventSource.onmessage = async function(event) {
+            const data = JSON.parse(event.data);
+            addMessage(data.message, !data.isAi);
+            
+            if (!data.isAi && !isVideoMode) {
+                if (avatar) {
+                    avatar.playAnimation('talking');
+                    await updateAvatarExpression(data.emotion || 'neutral');
+                    setTimeout(() => {
+                        avatar.playAnimation('idle');
+                    }, 3000);
+                }
+            }
+        };
+
+        function addMessage(text, isUser = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message-bubble ${isUser ? 'user-message' : 'ai-message'}`;
+            messageDiv.textContent = text;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        startBtn.onclick = async () => {
+            try {
+                const response = await fetch('/start_conversation', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    startBtn.style.display = 'none';
+                    endBtn.style.display = 'inline-block';
+                    voiceBtn.style.display = 'inline-block';
+                    status.textContent = 'Session started. Click "Voice Input" to begin speaking';
+                    addMessage(data.response);
+                }
+            } catch (error) {
+                console.error('Error starting conversation:', error);
+            }
+        };
+
+        endBtn.onclick = async () => {
+            try {
+                const response = await fetch('/end_conversation', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    startBtn.style.display = 'inline-block';
+                    endBtn.style.display = 'none';
+                    voiceBtn.style.display = 'none';
+                    voiceBtn.classList.remove('recording');
+                    status.textContent = 'Session ended. Click "Start Session" to begin a new session';
+                    isContinuousListening = false;
+                }
+            } catch (error) {
+                console.error('Error ending conversation:', error);
+            }
+        };
+
+        voiceBtn.onclick = async () => {
+            if (!isContinuousListening) {
+                isContinuousListening = true;
+                voiceBtn.classList.add('recording');
+                voiceBtn.textContent = '🎤 Stop Listening';
+                status.textContent = 'Listening... Speak naturally';
+                
+                try {
+                    const response = await fetch('/process_voice', { method: 'POST' });
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        console.error('Error processing voice:', data.error);
+                        status.textContent = data.error;
+                    }
+                } catch (error) {
+                    console.error('Error processing voice:', error);
+                    status.textContent = 'Error processing voice input';
+                }
+            } else {
+                isContinuousListening = false;
+                voiceBtn.classList.remove('recording');
+                voiceBtn.textContent = '🎤 Voice Input';
+                status.textContent = 'Voice input stopped. Click again to resume';
+            }
+        };
+
+        toggleModeBtn.onclick = () => {
+            isVideoMode = !isVideoMode;
+            if (isVideoMode) {
+                videoFeed.style.display = 'block';
+                avatarContainer.style.display = 'none';
+                toggleModeBtn.textContent = 'Switch to Avatar';
+            } else {
+                videoFeed.style.display = 'none';
+                avatarContainer.style.display = 'block';
+                toggleModeBtn.textContent = 'Switch to Video';
+                if (avatar) {
+                    avatar.playAnimation('idle');
+                }
+            }
+        };
+
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            console.error('Error: ', msg, '\nURL: ', url, '\nLine: ', lineNo, '\nColumn: ', columnNo, '\nError object: ', error);
+            return false;
+        };
+    </script>
+</body>
+</html>

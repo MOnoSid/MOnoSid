@@ -1,0 +1,13 @@
+Flask==2.0.1
+opencv-python==4.5.3.56
+google-generativeai==0.3.0
+SpeechRecognition==3.8.1
+Pillow==8.3.2
+edge-tts==6.1.9
+pygame==2.1.2
+deep-translator==1.11.4
+fer==22.5.1
+python-dotenv==0.19.0
+requests==2.31.0
+numpy>=1.19.5
+websockets==11.0.3
