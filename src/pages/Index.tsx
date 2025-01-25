@@ -4,8 +4,6 @@ import VoiceInput from "@/components/VoiceInput";
 import TherapyChat from "@/components/TherapyChat";
 import { getTherapyResponse, initializeGemini } from "@/utils/gemini";
 import { useToast } from "@/components/ui/use-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 interface Message {
   text: string;
@@ -21,35 +19,12 @@ const Index = () => {
   ]);
   const [lastFrame, setLastFrame] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showApiInput, setShowApiInput] = useState(false);
-  const [apiKey, setApiKey] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
-    const storedApiKey = localStorage.getItem("GEMINI_API_KEY");
-    if (storedApiKey) {
-      initializeGemini(storedApiKey);
-    } else {
-      setShowApiInput(true);
-      toast({
-        title: "API Key Required",
-        description: "Please enter your Gemini API key to enable AI responses.",
-        variant: "destructive",
-      });
-    }
+    // Initialize Gemini with the provided API key
+    initializeGemini("YOUR_PROVIDED_API_KEY");
   }, []);
-
-  const handleApiKeySubmit = () => {
-    if (apiKey.trim()) {
-      localStorage.setItem("GEMINI_API_KEY", apiKey);
-      initializeGemini(apiKey);
-      setShowApiInput(false);
-      toast({
-        title: "Success",
-        description: "API key has been saved successfully.",
-      });
-    }
-  };
 
   const handleFrame = (imageData: string) => {
     setLastFrame(imageData);
@@ -87,32 +62,15 @@ const Index = () => {
           MonoSid Therapy Session
         </h1>
         
-        {showApiInput ? (
-          <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4">Enter Gemini API Key</h2>
-            <div className="space-y-4">
-              <Input
-                type="password"
-                placeholder="Enter your API key"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-              />
-              <Button onClick={handleApiKeySubmit} className="w-full">
-                Save API Key
-              </Button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-4">
+            <VideoFeed onFrame={handleFrame} />
+            <div className="flex justify-center">
+              <VoiceInput onTranscript={handleTranscript} />
             </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <VideoFeed onFrame={handleFrame} />
-              <div className="flex justify-center">
-                <VoiceInput onTranscript={handleTranscript} />
-              </div>
-            </div>
-            <TherapyChat messages={messages} />
-          </div>
-        )}
+          <TherapyChat messages={messages} />
+        </div>
       </div>
     </div>
   );
