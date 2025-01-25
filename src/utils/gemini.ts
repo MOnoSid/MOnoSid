@@ -11,7 +11,7 @@ export const getTherapyResponse = async (
   imageData: string
 ): Promise<string> => {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     // Remove the data URL prefix to get just the base64 data
     const base64Image = imageData.split(",")[1];
