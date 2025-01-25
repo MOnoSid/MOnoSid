@@ -55,20 +55,29 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-therapy-bg to-white p-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        <h1 className="text-4xl font-bold text-therapy-text text-center mb-8">
-          Professional Therapy Session
-        </h1>
+    <div className="min-h-screen bg-gradient-to-b from-[#F7FAFC] to-white">
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        <header className="text-center space-y-4">
+          <h1 className="text-4xl font-bold text-therapy-text bg-clip-text text-transparent bg-gradient-to-r from-therapy-primary to-therapy-secondary">
+            Professional Therapy Session
+          </h1>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            Experience a safe and confidential space for emotional support and personal growth
+          </p>
+        </header>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="space-y-4">
-            <VideoFeed onFrame={handleFrame} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-lg p-4 border border-gray-100">
+              <VideoFeed onFrame={handleFrame} />
+            </div>
             <div className="flex justify-center">
               <VoiceInput onTranscript={handleTranscript} />
             </div>
           </div>
-          <TherapyChat messages={messages} />
+          <div className="h-full">
+            <TherapyChat messages={messages} />
+          </div>
         </div>
       </div>
     </div>

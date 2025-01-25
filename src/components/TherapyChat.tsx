@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 
@@ -12,9 +12,17 @@ interface TherapyChatProps {
 }
 
 const TherapyChat = ({ messages }: TherapyChatProps) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
   return (
-    <Card className="h-[400px] p-4 bg-white shadow-lg">
-      <ScrollArea className="h-full pr-4">
+    <Card className="h-[600px] bg-white shadow-lg rounded-2xl border border-gray-100">
+      <ScrollArea className="h-full p-6" ref={scrollRef}>
         <div className="space-y-4">
           {messages.map((message, index) => (
             <div
@@ -24,13 +32,13 @@ const TherapyChat = ({ messages }: TherapyChatProps) => {
               }`}
             >
               <div
-                className={`max-w-[80%] p-3 rounded-lg ${
+                className={`max-w-[80%] p-4 rounded-2xl shadow-sm ${
                   message.isUser
                     ? "bg-therapy-primary text-white"
-                    : "bg-gray-100 text-therapy-text"
+                    : "bg-gray-50 text-therapy-text border border-gray-100"
                 }`}
               >
-                {message.text}
+                <p className="leading-relaxed">{message.text}</p>
               </div>
             </div>
           ))}

@@ -9,25 +9,35 @@ interface VoiceInputProps {
 const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
+  const [interimTranscript, setInterimTranscript] = useState("");
+  const [finalTranscript, setFinalTranscript] = useState("");
 
   useEffect(() => {
-    // Check if browser supports speech recognition
     if ("webkitSpeechRecognition" in window) {
       const recognition = new (window as any).webkitSpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
 
       recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((result: any) => result[0])
-          .map((result) => result.transcript)
-          .join("");
+        let interim = "";
+        let final = "";
 
-        onTranscript(transcript);
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+
+        setInterimTranscript(interim);
+        if (final !== "") {
+          setFinalTranscript(final);
+          onTranscript(final);
+        }
       };
 
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error);
+      recognition.onend = () => {
         setIsListening(false);
       };
 
@@ -40,30 +50,39 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
       recognition?.stop();
       setIsListening(false);
     } else {
+      setInterimTranscript("");
+      setFinalTranscript("");
       recognition?.start();
       setIsListening(true);
     }
   };
 
   return (
-    <Button
-      onClick={toggleListening}
-      className={`${
-        isListening ? "bg-therapy-secondary" : "bg-therapy-primary"
-      } text-white hover:opacity-90 transition-all duration-200`}
-    >
-      {isListening ? (
-        <>
-          <MicOff className="w-4 h-4 mr-2" />
-          Stop Listening
-        </>
-      ) : (
-        <>
-          <Mic className="w-4 h-4 mr-2" />
-          Start Listening
-        </>
+    <div className="space-y-4">
+      <Button
+        onClick={toggleListening}
+        className={`${
+          isListening
+            ? "bg-therapy-secondary hover:bg-therapy-secondary/90"
+            : "bg-therapy-primary hover:bg-therapy-primary/90"
+        } text-white transition-all duration-300 rounded-full px-6 py-3 shadow-lg hover:shadow-xl`}
+      >
+        {isListening ? (
+          <>
+            <MicOff className="w-5 h-5 mr-2" />
+            Stop Listening
+          </>
+        ) : (
+          <>
+            <Mic className="w-5 h-5 mr-2" />
+            Start Listening
+          </>
+        )}
+      </Button>
+      {interimTranscript && (
+        <p className="text-gray-500 italic">{interimTranscript}</p>
       )}
-    </Button>
+    </div>
   );
 };
 
