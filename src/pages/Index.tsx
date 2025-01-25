@@ -13,7 +13,7 @@ interface Message {
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
-      text: "Hello! I'm Sky, your AI therapist. How are you feeling today?",
+      text: "Hello! I'm Dr. Sky, your professional AI therapist. I'm here to provide a safe, confidential space for you to share your thoughts and feelings. How are you feeling today?",
       isUser: false,
     },
   ]);
@@ -22,8 +22,7 @@ const Index = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Initialize Gemini with the provided API key
-    initializeGemini("YOUR_PROVIDED_API_KEY");
+    initializeGemini("AIzaSyDJHyNLVHEljoWyg9jVeV0rI-An-LdmAyw");
   }, []);
 
   const handleFrame = (imageData: string) => {
@@ -59,7 +58,7 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-to-b from-therapy-bg to-white p-8">
       <div className="max-w-6xl mx-auto space-y-8">
         <h1 className="text-4xl font-bold text-therapy-text text-center mb-8">
-          MonoSid Therapy Session
+          Professional Therapy Session
         </h1>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
