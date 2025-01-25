@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import VideoFeed from "@/components/VideoFeed";
 import VoiceInput from "@/components/VoiceInput";
 import TherapyChat from "@/components/TherapyChat";
+import { getTherapyResponse, initializeGemini } from "@/utils/gemini";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Message {
   text: string;
@@ -16,26 +18,48 @@ const Index = () => {
     },
   ]);
   const [lastFrame, setLastFrame] = useState<string>("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (apiKey) {
+      initializeGemini(apiKey);
+    } else {
+      toast({
+        title: "API Key Missing",
+        description: "Please set up your Gemini API key to enable AI responses.",
+        variant: "destructive",
+      });
+    }
+  }, []);
 
   const handleFrame = (imageData: string) => {
     setLastFrame(imageData);
   };
 
-  const handleTranscript = (text: string) => {
-    if (text.trim()) {
+  const handleTranscript = async (text: string) => {
+    if (text.trim() && !isProcessing) {
+      setIsProcessing(true);
+      
       // Add user message
       setMessages((prev) => [...prev, { text, isUser: true }]);
       
-      // Simulate AI response (in real implementation, this would call Gemini)
-      setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            text: "I understand how you're feeling. Would you like to tell me more about that?",
-            isUser: false,
-          },
-        ]);
-      }, 1000);
+      try {
+        // Get AI response based on text and image
+        const response = await getTherapyResponse(text, lastFrame);
+        
+        // Add AI response
+        setMessages((prev) => [...prev, { text: response, isUser: false }]);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to get AI response. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
