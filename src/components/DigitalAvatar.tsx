@@ -24,7 +24,7 @@ const DigitalAvatar = ({ message }: DigitalAvatarProps) => {
         const talkResponse = await fetch(`${D_ID_API_URL}/talks`, {
           method: 'POST',
           headers: {
-            'Authorization': `Basic ${D_ID_API_KEY}`,
+            'Authorization': `Bearer ${D_ID_API_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -44,7 +44,9 @@ const DigitalAvatar = ({ message }: DigitalAvatarProps) => {
         });
 
         if (!talkResponse.ok) {
-          throw new Error('Failed to create talk');
+          const errorData = await talkResponse.json();
+          console.error('D-ID API Error:', errorData);
+          throw new Error(errorData.message || 'Failed to create talk');
         }
 
         const talkData = await talkResponse.json();
@@ -53,7 +55,7 @@ const DigitalAvatar = ({ message }: DigitalAvatarProps) => {
         const checkResult = async () => {
           const resultResponse = await fetch(`${D_ID_API_URL}/talks/${talkData.id}`, {
             headers: {
-              'Authorization': `Basic ${D_ID_API_KEY}`,
+              'Authorization': `Bearer ${D_ID_API_KEY}`,
             },
           });
 
