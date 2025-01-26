@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
@@ -11,12 +12,22 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
   const [recognition, setRecognition] = useState<any>(null);
   const [interimTranscript, setInterimTranscript] = useState("");
   const [finalTranscript, setFinalTranscript] = useState("");
+  const { toast } = useToast();
+  const [silenceTimer, setSilenceTimer] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if ("webkitSpeechRecognition" in window) {
       const recognition = new (window as any).webkitSpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        toast({
+          title: "Listening...",
+          description: "You can start speaking now.",
+        });
+      };
 
       recognition.onresult = (event: any) => {
         let interim = "";
@@ -31,29 +42,52 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
         }
 
         setInterimTranscript(interim);
-        if (final !== "") {
-          setFinalTranscript(final);
-          onTranscript(final);
-        }
+        
+        // Reset silence timer on new speech
+        if (silenceTimer) clearTimeout(silenceTimer);
+        
+        // Set new silence timer
+        const timer = setTimeout(() => {
+          if (final || interim) {
+            recognition.stop();
+            onTranscript(final || interim);
+            setInterimTranscript("");
+            setFinalTranscript("");
+          }
+        }, 1500); // 1.5 seconds of silence will trigger completion
+        
+        setSilenceTimer(timer);
       };
 
       recognition.onend = () => {
         setIsListening(false);
+        if (silenceTimer) clearTimeout(silenceTimer);
+        toast({
+          title: "Listening stopped",
+          description: "Click the microphone to start again.",
+        });
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "There was an error with speech recognition.",
+        });
       };
 
       setRecognition(recognition);
     }
-  }, [onTranscript]);
+  }, [onTranscript, toast]);
 
   const toggleListening = () => {
     if (isListening) {
       recognition?.stop();
-      setIsListening(false);
     } else {
       setInterimTranscript("");
       setFinalTranscript("");
       recognition?.start();
-      setIsListening(true);
     }
   };
 
@@ -80,7 +114,7 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
         )}
       </Button>
       {interimTranscript && (
-        <p className="text-gray-500 italic">{interimTranscript}</p>
+        <p className="text-gray-500 italic mt-2">{interimTranscript}</p>
       )}
     </div>
   );

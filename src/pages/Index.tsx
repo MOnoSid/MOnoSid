@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import VideoFeed from "@/components/VideoFeed";
 import VoiceInput from "@/components/VoiceInput";
 import TherapyChat from "@/components/TherapyChat";
+import DigitalAvatar from "@/components/DigitalAvatar";
 import { getTherapyResponse, initializeGemini } from "@/utils/gemini";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -19,6 +20,7 @@ const Index = () => {
   ]);
   const [lastFrame, setLastFrame] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentAvatarMessage, setCurrentAvatarMessage] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -42,6 +44,7 @@ const Index = () => {
         
         // Add AI response
         setMessages((prev) => [...prev, { text: response, isUser: false }]);
+        setCurrentAvatarMessage(response);
       } catch (error) {
         toast({
           title: "Error",
@@ -68,6 +71,7 @@ const Index = () => {
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
+            <DigitalAvatar message={currentAvatarMessage} />
             <div className="bg-white rounded-2xl shadow-lg p-4 border border-gray-100">
               <VideoFeed onFrame={handleFrame} />
             </div>
