@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
@@ -11,9 +11,8 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
   const [interimTranscript, setInterimTranscript] = useState("");
-  const [finalTranscript, setFinalTranscript] = useState("");
   const { toast } = useToast();
-  const [silenceTimer, setSilenceTimer] = useState<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if ("webkitSpeechRecognition" in window) {
@@ -31,41 +30,40 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
 
       recognition.onresult = (event: any) => {
         let interim = "";
-        let final = "";
-
+        
         for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript;
+            onTranscript(transcript);
+            setInterimTranscript("");
+            recognition.stop();
           } else {
-            interim += event.results[i][0].transcript;
+            interim += transcript;
           }
         }
-
+        
         setInterimTranscript(interim);
-        
-        // Reset silence timer on new speech
-        if (silenceTimer) clearTimeout(silenceTimer);
-        
-        // Set new silence timer
-        const timer = setTimeout(() => {
-          if (final || interim) {
-            recognition.stop();
-            onTranscript(final || interim);
+
+        // Reset the timeout on new speech
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+
+        // Set new timeout for silence detection
+        timeoutRef.current = setTimeout(() => {
+          if (interim) {
+            onTranscript(interim);
             setInterimTranscript("");
-            setFinalTranscript("");
+            recognition.stop();
           }
         }, 1500); // 1.5 seconds of silence will trigger completion
-        
-        setSilenceTimer(timer);
       };
 
       recognition.onend = () => {
         setIsListening(false);
-        if (silenceTimer) clearTimeout(silenceTimer);
-        toast({
-          title: "Listening stopped",
-          description: "Click the microphone to start again.",
-        });
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
       };
 
       recognition.onerror = (event: any) => {
@@ -86,7 +84,6 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
       recognition?.stop();
     } else {
       setInterimTranscript("");
-      setFinalTranscript("");
       recognition?.start();
     }
   };

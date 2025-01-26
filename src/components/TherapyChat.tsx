@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
 
 interface Message {
   text: string;
@@ -13,6 +14,7 @@ interface TherapyChatProps {
 
 const TherapyChat = ({ messages }: TherapyChatProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isAITyping, setIsAITyping] = React.useState(false);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -42,6 +44,14 @@ const TherapyChat = ({ messages }: TherapyChatProps) => {
               </div>
             </div>
           ))}
+          {isAITyping && (
+            <div className="flex justify-start">
+              <div className="flex items-center space-x-2 bg-gray-50 p-4 rounded-2xl">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm text-gray-500">AI is typing...</span>
+              </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
     </Card>

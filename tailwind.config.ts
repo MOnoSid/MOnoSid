@@ -25,8 +25,8 @@ export default {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         therapy: {
-          primary: "#4A90E2",
-          secondary: "#68D391",
+          primary: "#9b87f5",
+          secondary: "#7E69AB",
           bg: "#F7FAFC",
           text: "#2D3748",
         },
