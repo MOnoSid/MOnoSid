@@ -26,6 +26,7 @@ const DigitalAvatar = ({ message }: DigitalAvatarProps) => {
           headers: {
             'Authorization': `Bearer ${D_ID_API_KEY}`,
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
           },
           body: JSON.stringify({
             script: {
@@ -50,24 +51,30 @@ const DigitalAvatar = ({ message }: DigitalAvatarProps) => {
         }
 
         const talkData = await talkResponse.json();
+        console.log('Talk created successfully:', talkData);
         
         // Poll for the result
         const checkResult = async () => {
           const resultResponse = await fetch(`${D_ID_API_URL}/talks/${talkData.id}`, {
             headers: {
               'Authorization': `Bearer ${D_ID_API_KEY}`,
+              'Accept': 'application/json',
             },
           });
 
           if (!resultResponse.ok) {
+            const errorData = await resultResponse.json();
+            console.error('D-ID API Error:', errorData);
             throw new Error('Failed to get talk status');
           }
 
           const resultData = await resultResponse.json();
+          console.log('Talk status:', resultData);
 
           if (resultData.status === 'done') {
             if (videoRef.current) {
               videoRef.current.src = resultData.result_url;
+              videoRef.current.load(); // Ensure the video loads the new source
             }
             setIsLoading(false);
           } else if (resultData.status === 'error') {
@@ -80,12 +87,12 @@ const DigitalAvatar = ({ message }: DigitalAvatarProps) => {
 
         await checkResult();
 
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error generating avatar response:', error);
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to generate avatar response. Please try again.",
+          description: error.message || "Failed to generate avatar response. Please try again.",
         });
         setIsLoading(false);
       }
@@ -103,6 +110,7 @@ const DigitalAvatar = ({ message }: DigitalAvatarProps) => {
         className="w-full h-full object-cover"
         autoPlay
         playsInline
+        controls
       />
       {!videoRef.current?.src && (
         <div className="absolute inset-0 flex items-center justify-center text-therapy-text">
