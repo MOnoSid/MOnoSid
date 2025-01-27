@@ -1,14 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import VideoFeed from "@/components/VideoFeed";
-import VoiceInput from "@/components/VoiceInput";
 import TherapyChat from "@/components/TherapyChat";
-import { getTherapyResponse, initializeGemini } from "@/utils/gemini";
-import { useToast } from "@/components/ui/use-toast";
-
-interface Message {
-  text: string;
-  isUser: boolean;
-}
+import VoiceInput from "@/components/VoiceInput";
+import { Button } from "@/components/ui/button";
+import { Layout } from "lucide-react";
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -17,67 +12,86 @@ const Index = () => {
       isUser: false,
     },
   ]);
-  const [lastFrame, setLastFrame] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"full" | "video" | "chat">("full");
   const [isProcessing, setIsProcessing] = useState(false);
-  const { toast } = useToast();
-
-  useEffect(() => {
-    initializeGemini("AIzaSyDJHyNLVHEljoWyg9jVeV0rI-An-LdmAyw");
-  }, []);
-
-  const handleFrame = (imageData: string) => {
-    setLastFrame(imageData);
-  };
 
   const handleTranscript = async (text: string) => {
     if (text.trim() && !isProcessing) {
       setIsProcessing(true);
-      
-      // Add user message
       setMessages((prev) => [...prev, { text, isUser: true }]);
       
-      try {
-        // Get AI response based on text and image
-        const response = await getTherapyResponse(text, lastFrame);
-        
-        // Add AI response
-        setMessages((prev) => [...prev, { text: response, isUser: false }]);
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to get AI response. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
+      // Simulate AI response delay
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            text: "I understand how you're feeling. Would you like to tell me more about that?",
+            isUser: false,
+          },
+        ]);
         setIsProcessing(false);
-      }
+      }, 2000);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F7FAFC] to-white">
-      <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold text-therapy-text bg-clip-text text-transparent bg-gradient-to-r from-therapy-primary to-therapy-secondary">
-            Professional Therapy Session
-          </h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Experience a safe and confidential space for emotional support and personal growth
-          </p>
-        </header>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-lg p-4 border border-gray-100">
-              <VideoFeed onFrame={handleFrame} />
+    <div className="min-h-screen bg-[#0F1520]">
+      <div className="max-w-[1400px] mx-auto p-4">
+        {/* View Mode Controls */}
+        <div className="flex justify-end gap-2 mb-4">
+          <Button
+            variant={viewMode === "full" ? "secondary" : "ghost"}
+            onClick={() => setViewMode("full")}
+            className="text-white"
+          >
+            <Layout className="w-4 h-4 mr-2" />
+            Full View
+          </Button>
+          <Button
+            variant={viewMode === "video" ? "secondary" : "ghost"}
+            onClick={() => setViewMode("video")}
+            className="text-white"
+          >
+            Video Only
+          </Button>
+          <Button
+            variant={viewMode === "chat" ? "secondary" : "ghost"}
+            onClick={() => setViewMode("chat")}
+            className="text-white"
+          >
+            Chat Only
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {(viewMode === "full" || viewMode === "video") && (
+            <div className="space-y-6">
+              <div className="bg-[#1A1F2C] rounded-xl p-4">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-[#2A2F3C] rounded-lg flex items-center justify-center text-blue-400 font-bold">
+                    Dr
+                  </div>
+                  <div>
+                    <h2 className="text-white font-semibold">Dr. Sky</h2>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                      <span className="text-gray-400 text-sm">Online</span>
+                    </div>
+                  </div>
+                </div>
+                <VideoFeed onFrame={() => {}} />
+              </div>
             </div>
-            <div className="flex justify-center">
-              <VoiceInput onTranscript={handleTranscript} />
+          )}
+
+          {(viewMode === "full" || viewMode === "chat") && (
+            <div className="space-y-6">
+              <TherapyChat messages={messages} />
+              <div className="bg-[#1A1F2C] rounded-xl p-4">
+                <VoiceInput onTranscript={handleTranscript} />
+              </div>
             </div>
-          </div>
-          <div className="h-full">
-            <TherapyChat messages={messages} />
-          </div>
+          )}
         </div>
       </div>
     </div>

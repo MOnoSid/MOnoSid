@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff } from "lucide-react";
+import { Mic, MicOff, Wand2 } from "lucide-react";
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
@@ -9,36 +9,27 @@ interface VoiceInputProps {
 const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
-  const [interimTranscript, setInterimTranscript] = useState("");
-  const [finalTranscript, setFinalTranscript] = useState("");
+  const [status, setStatus] = useState<"idle" | "listening" | "speaking" | "thinking">("idle");
 
   useEffect(() => {
     if ("webkitSpeechRecognition" in window) {
       const recognition = new (window as any).webkitSpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        setStatus("listening");
+      };
 
       recognition.onresult = (event: any) => {
-        let interim = "";
-        let final = "";
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript;
-          } else {
-            interim += event.results[i][0].transcript;
-          }
-        }
-
-        setInterimTranscript(interim);
-        if (final !== "") {
-          setFinalTranscript(final);
-          onTranscript(final);
-        }
+        const transcript = event.results[0][0].transcript;
+        onTranscript(transcript);
+        setStatus("thinking");
       };
 
       recognition.onend = () => {
         setIsListening(false);
+        setStatus("idle");
       };
 
       setRecognition(recognition);
@@ -48,40 +39,40 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
   const toggleListening = () => {
     if (isListening) {
       recognition?.stop();
-      setIsListening(false);
     } else {
-      setInterimTranscript("");
-      setFinalTranscript("");
       recognition?.start();
       setIsListening(true);
     }
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex items-center gap-4 bg-[#2A2F3C] rounded-lg p-3">
       <Button
         onClick={toggleListening}
+        variant="ghost"
+        size="icon"
         className={`${
-          isListening
-            ? "bg-therapy-secondary hover:bg-therapy-secondary/90"
-            : "bg-therapy-primary hover:bg-therapy-primary/90"
-        } text-white transition-all duration-300 rounded-full px-6 py-3 shadow-lg hover:shadow-xl`}
+          isListening ? "text-red-500" : "text-white"
+        } hover:bg-[#1A1F2C]`}
       >
-        {isListening ? (
-          <>
-            <MicOff className="w-5 h-5 mr-2" />
-            Stop Listening
-          </>
-        ) : (
-          <>
-            <Mic className="w-5 h-5 mr-2" />
-            Start Listening
-          </>
-        )}
+        {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
       </Button>
-      {interimTranscript && (
-        <p className="text-gray-500 italic">{interimTranscript}</p>
-      )}
+      
+      <input
+        type="text"
+        placeholder="Type your message or click the AI to start interaction..."
+        className="flex-1 bg-transparent text-white border-none focus:outline-none"
+        disabled={isListening}
+      />
+
+      <div className="flex items-center gap-2">
+        {status !== "idle" && (
+          <span className="text-sm text-gray-400 capitalize">{status}...</span>
+        )}
+        <Button variant="ghost" size="icon" className="text-white hover:bg-[#1A1F2C]">
+          <Wand2 className="w-5 h-5" />
+        </Button>
+      </div>
     </div>
   );
 };
