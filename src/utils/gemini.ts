@@ -1,17 +1,18 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-let genAI: GoogleGenerativeAI;
-
-export const initializeGemini = (apiKey: string) => {
-  genAI = new GoogleGenerativeAI(apiKey);
-};
+// Initialize Gemini with API key
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
 
 export const getTherapyResponse = async (
   text: string,
   imageData: string
 ): Promise<string> => {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    if (!import.meta.env.VITE_GEMINI_API_KEY) {
+      return "I apologize, but I need to be properly configured with an API key to provide therapy services. Please ensure the API key is set up correctly.";
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
 
     // Remove the data URL prefix to get just the base64 data
     const base64Image = imageData.split(",")[1];
@@ -45,6 +46,6 @@ User's input: ${text}`;
     return response;
   } catch (error) {
     console.error("Error getting therapy response:", error);
-    return "I apologize, but I'm having trouble processing your response right now. As your therapist, I want to ensure I provide you with the best support possible. Could you please share your thoughts again?";
+    return "I apologize, but I'm experiencing some technical difficulties at the moment. As your therapist, I want to ensure I provide you with the best support possible. Could you please share your thoughts again?";
   }
 };
