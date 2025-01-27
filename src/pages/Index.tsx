@@ -3,8 +3,7 @@ import VideoFeed from "@/components/VideoFeed";
 import TherapyChat from "@/components/TherapyChat";
 import VoiceInput from "@/components/VoiceInput";
 import { Button } from "@/components/ui/button";
-import { Layout, Mic } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { Layout } from "lucide-react";
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -15,8 +14,6 @@ const Index = () => {
   ]);
   const [viewMode, setViewMode] = useState<"full" | "video" | "chat">("full");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isLiveMode, setIsLiveMode] = useState(false);
-  const { toast } = useToast();
 
   const handleTranscript = async (text: string) => {
     if (text.trim() && !isProcessing) {
@@ -37,53 +34,32 @@ const Index = () => {
     }
   };
 
-  const toggleLiveMode = () => {
-    setIsLiveMode(!isLiveMode);
-    toast({
-      title: isLiveMode ? "Live Conversation Ended" : "Live Conversation Started",
-      description: isLiveMode 
-        ? "Voice interaction has been disabled" 
-        : "You can now speak with Dr. Sky using your voice",
-    });
-  };
-
   return (
     <div className="min-h-screen bg-[#0F1520]">
       <div className="max-w-[1400px] mx-auto p-4">
-        <div className="flex justify-between items-center gap-2 mb-4">
+        <div className="flex justify-end gap-2 mb-4">
           <Button
-            onClick={toggleLiveMode}
-            variant={isLiveMode ? "secondary" : "ghost"}
+            variant={viewMode === "full" ? "secondary" : "ghost"}
+            onClick={() => setViewMode("full")}
             className="text-white"
           >
-            <Mic className="w-4 h-4 mr-2" />
-            Live Conversation
+            <Layout className="w-4 h-4 mr-2" />
+            Full View
           </Button>
-          
-          <div className="flex gap-2">
-            <Button
-              variant={viewMode === "full" ? "secondary" : "ghost"}
-              onClick={() => setViewMode("full")}
-              className="text-white"
-            >
-              <Layout className="w-4 h-4 mr-2" />
-              Full View
-            </Button>
-            <Button
-              variant={viewMode === "video" ? "secondary" : "ghost"}
-              onClick={() => setViewMode("video")}
-              className="text-white"
-            >
-              Video Only
-            </Button>
-            <Button
-              variant={viewMode === "chat" ? "secondary" : "ghost"}
-              onClick={() => setViewMode("chat")}
-              className="text-white"
-            >
-              Chat Only
-            </Button>
-          </div>
+          <Button
+            variant={viewMode === "video" ? "secondary" : "ghost"}
+            onClick={() => setViewMode("video")}
+            className="text-white"
+          >
+            Video Only
+          </Button>
+          <Button
+            variant={viewMode === "chat" ? "secondary" : "ghost"}
+            onClick={() => setViewMode("chat")}
+            className="text-white"
+          >
+            Chat Only
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -110,11 +86,9 @@ const Index = () => {
           {(viewMode === "full" || viewMode === "chat") && (
             <div className="space-y-6">
               <TherapyChat messages={messages} />
-              {isLiveMode && (
-                <div className="bg-[#1A1F2C] rounded-xl p-4">
-                  <VoiceInput onTranscript={handleTranscript} />
-                </div>
-              )}
+              <div className="bg-[#1A1F2C] rounded-xl p-4">
+                <VoiceInput onTranscript={handleTranscript} />
+              </div>
             </div>
           )}
         </div>

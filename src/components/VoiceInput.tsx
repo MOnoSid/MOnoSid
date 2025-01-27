@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Wand2 } from "lucide-react";
+import { Mic, MicOff, Send } from "lucide-react";
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
@@ -8,6 +8,7 @@ interface VoiceInputProps {
 
 const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
   const [isListening, setIsListening] = useState(false);
+  const [inputText, setInputText] = useState("");
   const [recognition, setRecognition] = useState<any>(null);
   const [status, setStatus] = useState<"idle" | "listening" | "speaking" | "thinking">("idle");
 
@@ -45,9 +46,18 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputText.trim()) {
+      onTranscript(inputText);
+      setInputText("");
+    }
+  };
+
   return (
-    <div className="flex items-center gap-4 bg-[#2A2F3C] rounded-lg p-3">
+    <form onSubmit={handleSubmit} className="flex items-center gap-4 bg-[#2A2F3C] rounded-lg p-3">
       <Button
+        type="button"
         onClick={toggleListening}
         variant="ghost"
         size="icon"
@@ -60,20 +70,27 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
       
       <input
         type="text"
-        placeholder="Type your message or click the AI to start interaction..."
+        value={inputText}
+        onChange={(e) => setInputText(e.target.value)}
+        placeholder="Type your message or click the microphone to start speaking..."
         className="flex-1 bg-transparent text-white border-none focus:outline-none"
         disabled={isListening}
       />
 
-      <div className="flex items-center gap-2">
-        {status !== "idle" && (
-          <span className="text-sm text-gray-400 capitalize">{status}...</span>
-        )}
-        <Button variant="ghost" size="icon" className="text-white hover:bg-[#1A1F2C]">
-          <Wand2 className="w-5 h-5" />
-        </Button>
-      </div>
-    </div>
+      {status !== "idle" && (
+        <span className="text-sm text-gray-400 capitalize">{status}...</span>
+      )}
+
+      <Button 
+        type="submit" 
+        variant="ghost" 
+        size="icon"
+        disabled={!inputText.trim() && !isListening}
+        className="text-white hover:bg-[#1A1F2C]"
+      >
+        <Send className="w-5 h-5" />
+      </Button>
+    </form>
   );
 };
 
