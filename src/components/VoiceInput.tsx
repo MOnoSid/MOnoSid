@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Send } from "lucide-react";
+import { Mic, MicOff, Send, Loader2 } from "lucide-react";
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
+  isProcessing: boolean;
 }
 
-const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
+const VoiceInput = ({ onTranscript, isProcessing }: VoiceInputProps) => {
   const [isListening, setIsListening] = useState(false);
   const [inputText, setInputText] = useState("");
   const [recognition, setRecognition] = useState<any>(null);
@@ -64,6 +65,7 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
         className={`${
           isListening ? "text-red-500" : "text-white"
         } hover:bg-[#1A1F2C]`}
+        disabled={isProcessing}
       >
         {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
       </Button>
@@ -74,21 +76,27 @@ const VoiceInput = ({ onTranscript }: VoiceInputProps) => {
         onChange={(e) => setInputText(e.target.value)}
         placeholder="Type your message or click the microphone to start speaking..."
         className="flex-1 bg-transparent text-white border-none focus:outline-none"
-        disabled={isListening}
+        disabled={isListening || isProcessing}
       />
 
-      {status !== "idle" && (
-        <span className="text-sm text-gray-400 capitalize">{status}...</span>
+      {(status !== "idle" || isProcessing) && (
+        <span className="text-sm text-gray-400 capitalize">
+          {isProcessing ? "Processing..." : `${status}...`}
+        </span>
       )}
 
       <Button 
         type="submit" 
         variant="ghost" 
         size="icon"
-        disabled={!inputText.trim() && !isListening}
+        disabled={(!inputText.trim() && !isListening) || isProcessing}
         className="text-white hover:bg-[#1A1F2C]"
       >
-        <Send className="w-5 h-5" />
+        {isProcessing ? (
+          <Loader2 className="w-5 h-5 animate-spin" />
+        ) : (
+          <Send className="w-5 h-5" />
+        )}
       </Button>
     </form>
   );

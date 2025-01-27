@@ -4,6 +4,13 @@ import TherapyChat from "@/components/TherapyChat";
 import VoiceInput from "@/components/VoiceInput";
 import { Button } from "@/components/ui/button";
 import { Layout } from "lucide-react";
+import { getTherapyResponse } from "@/utils/gemini";
+import { useToast } from "@/components/ui/use-toast";
+
+interface Message {
+  text: string;
+  isUser: boolean;
+}
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -14,24 +21,36 @@ const Index = () => {
   ]);
   const [viewMode, setViewMode] = useState<"full" | "video" | "chat">("full");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentFrame, setCurrentFrame] = useState<string>("");
+  const { toast } = useToast();
 
   const handleTranscript = async (text: string) => {
     if (text.trim() && !isProcessing) {
-      setIsProcessing(true);
-      setMessages((prev) => [...prev, { text, isUser: true }]);
-      
-      // Simulate AI response delay
-      setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            text: "I understand how you're feeling. Would you like to tell me more about that?",
-            isUser: false,
-          },
-        ]);
+      try {
+        setIsProcessing(true);
+        // Add user message
+        setMessages((prev) => [...prev, { text, isUser: true }]);
+
+        // Get response from Gemini
+        const response = await getTherapyResponse(text, currentFrame);
+        
+        // Add AI response
+        setMessages((prev) => [...prev, { text: response, isUser: false }]);
+      } catch (error) {
+        console.error("Error getting therapy response:", error);
+        toast({
+          title: "Error",
+          description: "I apologize, but I'm having trouble processing your response. Could you please try again?",
+          variant: "destructive",
+        });
+      } finally {
         setIsProcessing(false);
-      }, 2000);
+      }
     }
+  };
+
+  const handleFrame = (imageData: string) => {
+    setCurrentFrame(imageData);
   };
 
   return (
@@ -78,7 +97,7 @@ const Index = () => {
                     </div>
                   </div>
                 </div>
-                <VideoFeed onFrame={() => {}} />
+                <VideoFeed onFrame={handleFrame} />
               </div>
             </div>
           )}
@@ -87,7 +106,7 @@ const Index = () => {
             <div className="space-y-6">
               <TherapyChat messages={messages} />
               <div className="bg-[#1A1F2C] rounded-xl p-4">
-                <VoiceInput onTranscript={handleTranscript} />
+                <VoiceInput onTranscript={handleTranscript} isProcessing={isProcessing} />
               </div>
             </div>
           )}
