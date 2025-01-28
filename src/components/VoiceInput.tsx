@@ -21,6 +21,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [inputText, setInputText] = useState('');
+  const [isContinuousMode, setIsContinuousMode] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isSpeakingRef = useRef(false);
 
@@ -62,6 +63,10 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
             setIsListening(false);
             if (!isProcessing && !isSpeakingRef.current) {
               onStateChange?.('idle');
+              // If in continuous mode and not processing, start listening again
+              if (isContinuousMode && !isProcessing && !isSpeakingRef.current) {
+                setTimeout(() => startListening(), 1000);
+              }
             }
           };
 
@@ -72,6 +77,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
               toast.error(`Speech recognition error: ${event.error}`);
             }
             onStateChange?.('idle');
+            setIsContinuousMode(false);
           };
         }
       } catch (error) {
@@ -87,7 +93,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         recognitionRef.current.abort();
       }
     };
-  }, [onTranscript, onStateChange, isProcessing]);
+  }, [onTranscript, onStateChange, isProcessing, isContinuousMode]);
 
   // Handle bot's text-to-speech response
   useEffect(() => {
@@ -105,11 +111,13 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
       // Speak the response
       speak(lastResponse)
         .then(() => {
-          // After speaking finishes, wait a moment then start listening again
+          // After speaking finishes, wait a moment then start listening again if in continuous mode
           setTimeout(() => {
             isSpeakingRef.current = false;
-            if (!isProcessing) {
+            if (!isProcessing && isContinuousMode) {
               startListening();
+            } else {
+              onStateChange?.('idle');
             }
           }, 1000);
         })
@@ -118,6 +126,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
           toast.error("Failed to speak response");
           isSpeakingRef.current = false;
           onStateChange?.('idle');
+          setIsContinuousMode(false);
         });
 
       return () => {
@@ -125,7 +134,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         isSpeakingRef.current = false;
       };
     }
-  }, [lastResponse, isProcessing, onStateChange, isListening]);
+  }, [lastResponse, isProcessing, onStateChange, isListening, isContinuousMode]);
 
   // Handle processing state
   useEffect(() => {
@@ -148,6 +157,22 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
     } catch (error) {
       console.error('Error starting recognition:', error);
       toast.error("Failed to start listening");
+      setIsListening(false);
+      onStateChange?.('idle');
+      setIsContinuousMode(false);
+    }
+  };
+
+  const toggleContinuousMode = () => {
+    if (!isContinuousMode) {
+      setIsContinuousMode(true);
+      startListening();
+    } else {
+      setIsContinuousMode(false);
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+      stopSpeaking();
       setIsListening(false);
       onStateChange?.('idle');
     }
@@ -186,10 +211,10 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           <Button
             size="icon"
-            variant={isListening ? "default" : "ghost"}
-            onClick={startListening}
+            variant={isContinuousMode ? "default" : "ghost"}
+            onClick={toggleContinuousMode}
             disabled={isProcessing || isSpeakingRef.current}
-            className={`transition-colors ${isListening ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
+            className={`transition-colors ${isContinuousMode ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
           >
             <Mic className="h-4 w-4" />
           </Button>
