@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import TherapyChat from './TherapyChat';
 import VoiceInput from './VoiceInput';
 import VideoFeed from './VideoFeed';
 import Resizer from './Resizer';
+import { Button } from './ui/button';
+import { MessageSquare } from 'lucide-react';
 
 interface FlexibleLayoutProps {
   messages: any[];
@@ -19,6 +22,7 @@ const FlexibleLayout = ({
   lastResponse,
   onFrame 
 }: FlexibleLayoutProps) => {
+  const navigate = useNavigate();
   const [videoSize, setVideoSize] = useState(500);
   const [isMobile, setIsMobile] = useState(false);
   const [avatarState, setAvatarState] = useState<'idle' | 'listening' | 'speaking' | 'thinking'>('idle');
@@ -47,6 +51,14 @@ const FlexibleLayout = ({
             Empathetic Dialogue
           </h1>
         </div>
+        <Button
+          variant="ghost"
+          className="text-therapy-text-primary"
+          onClick={() => navigate('/feedback')}
+        >
+          <MessageSquare className="w-5 h-5 mr-2" />
+          Feedback
+        </Button>
       </div>
 
       {/* Main Content */}
