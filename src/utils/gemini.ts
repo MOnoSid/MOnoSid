@@ -1,14 +1,17 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Initialize Gemini with API key
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
+let genAI: GoogleGenerativeAI;
+
+export const initializeGemini = (apiKey: string) => {
+  genAI = new GoogleGenerativeAI(apiKey);
+};
 
 export const getTherapyResponse = async (
   text: string,
   imageData?: string
 ): Promise<string> => {
   try {
-    if (!import.meta.env.VITE_GEMINI_API_KEY) {
+    if (!genAI) {
       return "I apologize, but I need to be properly configured with an API key to provide therapy services. Please ensure the API key is set up correctly.";
     }
 
