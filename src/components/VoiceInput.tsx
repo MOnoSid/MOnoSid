@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { speak, stopSpeaking } from '@/utils/tts';
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Mic, Send } from "lucide-react"
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
@@ -14,24 +17,11 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
   lastResponse,
   onStateChange 
 }) => {
-  const [isConversationActive, setIsConversationActive] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [inputText, setInputText] = useState('');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isSpeakingRef = useRef(false);
-
-  // Start listening for user input
-  const startListening = () => {
-    if (!recognitionRef.current || isSpeakingRef.current || !isConversationActive) return;
-    
-    try {
-      recognitionRef.current.start();
-      setIsListening(true);
-      onStateChange?.('listening');
-    } catch (error) {
-      console.error('Error starting recognition:', error);
-    }
-  };
 
   // Initialize speech recognition
   useEffect(() => {
@@ -48,11 +38,6 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         };
 
         recognition.onresult = (event) => {
-          if (isSpeakingRef.current) {
-            recognition.abort();
-            return;
-          }
-
           const current = event.resultIndex;
           const transcriptText = event.results[current][0].transcript;
           setTranscript(transcriptText);
@@ -60,7 +45,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
           if (event.results[current].isFinal) {
             onTranscript(transcriptText);
             setTranscript('');
-            recognition.stop(); // Stop after getting final result
+            recognition.stop();
           }
         };
 
@@ -72,12 +57,6 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         recognition.onerror = (event) => {
           console.error('Speech recognition error:', event.error);
           setIsListening(false);
-          // Wait a bit and try to restart listening if still in conversation
-          setTimeout(() => {
-            if (isConversationActive && !isSpeakingRef.current && !isProcessing) {
-              startListening();
-            }
-          }, 1000);
         };
       }
     };
@@ -89,11 +68,11 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         recognitionRef.current.abort();
       }
     };
-  }, [isConversationActive, isProcessing, onTranscript, onStateChange]);
+  }, [onTranscript, onStateChange]);
 
   // Handle bot's text-to-speech response
   useEffect(() => {
-    if (lastResponse && isConversationActive) {
+    if (lastResponse && !isProcessing) {
       // Stop any ongoing listening
       if (recognitionRef.current && isListening) {
         recognitionRef.current.abort();
@@ -105,14 +84,14 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
       onStateChange?.('speaking');
 
       // Speak the response
-      speak(lastResponse, () => {
+      speak(lastResponse).then(() => {
         // After speaking finishes, wait a moment then start listening again
         setTimeout(() => {
           isSpeakingRef.current = false;
-          if (isConversationActive && !isProcessing) {
-            startListening(); // Resume listening for next user input
+          if (!isProcessing) {
+            startListening();
           }
-        }, 1000); // Short pause after speaking
+        }, 1000);
       });
 
       return () => {
@@ -120,7 +99,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         isSpeakingRef.current = false;
       };
     }
-  }, [lastResponse, isConversationActive, isProcessing, onStateChange, isListening]);
+  }, [lastResponse, isProcessing, onStateChange, isListening]);
 
   // Handle processing state
   useEffect(() => {
@@ -133,79 +112,66 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
     }
   }, [isProcessing, isListening, onStateChange]);
 
-  const startConversation = () => {
-    setIsConversationActive(true);
-    startListening();
+  const startListening = () => {
+    if (!recognitionRef.current || isSpeakingRef.current || isProcessing) return;
+    try {
+      recognitionRef.current.start();
+      setIsListening(true);
+      onStateChange?.('listening');
+    } catch (error) {
+      console.error('Error starting recognition:', error);
+    }
   };
 
-  const stopConversation = () => {
-    setIsConversationActive(false);
-    setIsListening(false);
-    isSpeakingRef.current = false;
-    stopSpeaking();
-    if (recognitionRef.current) {
-      recognitionRef.current.abort();
+  const handleSendText = () => {
+    if (inputText.trim()) {
+      onTranscript(inputText.trim());
+      setInputText('');
     }
-    onStateChange?.('idle');
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendText();
+    }
   };
 
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex-1">
-        <p className="text-sm text-therapy-text-muted">
-          {transcript || (isListening ? 'Listening...' : 
+    <div className="flex items-center gap-2">
+      <div className="relative flex-1">
+        <Input
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          onKeyPress={handleKeyPress}
+          placeholder={
+            transcript || 
+            (isListening ? 'Listening...' : 
             isSpeakingRef.current ? 'Bot is speaking...' : 
-            isProcessing ? 'Processing...' :
-            isConversationActive ? 'Ready for your input...' : 
-            'Click to start conversation')}
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        {/* Start Button */}
-        <button
-          onClick={startConversation}
-          disabled={isConversationActive}
-          className={`
-            relative flex items-center justify-center w-12 h-12 rounded-full 
-            ${isConversationActive 
-              ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-black hover:bg-gray-800'
-            }
-            transition-colors duration-200
-          `}
-          title="Start conversation"
-        >
-          {/* Equalizer Icon */}
-          <svg
-            className="w-6 h-6 text-white"
-            viewBox="0 0 24 24"
-            fill="currentColor"
+            isProcessing ? 'Processing...' : 
+            'Type a message or click microphone to speak...')
+          }
+          className="pr-20"
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={startListening}
+            disabled={isProcessing || isSpeakingRef.current}
+            className={isListening ? 'text-blue-500' : ''}
           >
-            <rect x="4" y="10" width="2" height="4" className={`${isListening ? 'animate-eq1' : ''}`} />
-            <rect x="8" y="8" width="2" height="8" className={`${isListening ? 'animate-eq2' : ''}`} />
-            <rect x="12" y="4" width="2" height="16" className={`${isListening ? 'animate-eq3' : ''}`} />
-            <rect x="16" y="8" width="2" height="8" className={`${isListening ? 'animate-eq2' : ''}`} />
-            <rect x="20" y="10" width="2" height="4" className={`${isListening ? 'animate-eq1' : ''}`} />
-          </svg>
-        </button>
-
-        {/* Stop Button */}
-        {isConversationActive && (
-          <button
-            onClick={stopConversation}
-            className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 transition-colors duration-200"
-            title="Stop conversation"
+            <Mic className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleSendText}
+            disabled={!inputText.trim()}
           >
-            {/* Stop Icon */}
-            <svg
-              className="w-6 h-6 text-white"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <rect x="6" y="6" width="12" height="12" />
-            </svg>
-          </button>
-        )}
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );

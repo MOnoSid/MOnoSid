@@ -1,41 +1,34 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-let genAI: GoogleGenerativeAI;
-
-export const initializeGemini = (apiKey: string) => {
-  genAI = new GoogleGenerativeAI(apiKey);
-};
+// Initialize Gemini with API key
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
 
 export const getTherapyResponse = async (
   text: string,
   imageData?: string
 ): Promise<string> => {
   try {
-    if (!genAI) {
-      throw new Error("Gemini not initialized. Please check your API key.");
+    if (!import.meta.env.VITE_GEMINI_API_KEY) {
+      return "I apologize, but I need to be properly configured with an API key to provide therapy services. Please ensure the API key is set up correctly.";
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
 
-    const prompt = `You are Dr. Sky, a highly qualified and empathetic professional therapist with expertise in cognitive behavioral therapy, mindfulness, and emotional intelligence. Your responses should:
+    const prompt = `You are Dr. Sky, a highly empathetic and professional AI therapist. Your responses should:
+    1. Be concise but meaningful (2-3 sentences max)
+    2. Show genuine understanding and empathy
+    3. Use therapeutic techniques appropriately
+    4. Maintain a warm, supportive tone
+    5. Focus on the immediate emotional context
+    6. Encourage further dialogue naturally
+    7. Avoid clinical jargon
+    8. Never mention being an AI or virtual entity
 
-1. Maintain a professional, warm, and supportive tone
-2. Use therapeutic techniques and frameworks appropriately
-3. Practice active listening and reflection
-4. Offer evidence-based insights and coping strategies
-5. Ensure responses are ethical and maintain professional boundaries
-6. Show empathy while maintaining professional objectivity
-7. Don't use any words like image,picture,video in response because your are a virtual therapist.
-8. Your response should short and accurate.
-9. Answer any question that user ask
+    User's input: ${text}`;
 
-User's input: ${text}`;
-
-    // Only include image data if it's available and valid
     const parts: any[] = [prompt];
-    
+
     if (imageData && imageData.includes('base64')) {
-      // Remove the data URL prefix to get just the base64 data
       const base64Image = imageData.split(',')[1];
       if (base64Image) {
         parts.push({
@@ -52,6 +45,6 @@ User's input: ${text}`;
     return response;
   } catch (error) {
     console.error("Error getting therapy response:", error);
-    throw error;
+    return "I apologize, but I'm experiencing some technical difficulties at the moment. Could you please share your thoughts again?";
   }
 };
