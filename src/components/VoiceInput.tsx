@@ -3,6 +3,7 @@ import { speak, stopSpeaking } from '@/utils/tts';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Mic, Send } from "lucide-react"
+import { toast } from "sonner"
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
@@ -26,39 +27,56 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
   // Initialize speech recognition
   useEffect(() => {
     const setupRecognition = () => {
-      if (!recognitionRef.current) {
-        const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
-        recognitionRef.current = new SpeechRecognitionImpl();
-        const recognition = recognitionRef.current;
-        recognition.continuous = false;
-        recognition.interimResults = true;
-
-        recognition.onstart = () => {
-          setIsListening(true);
-          onStateChange?.('listening');
-        };
-
-        recognition.onresult = (event) => {
-          const current = event.resultIndex;
-          const transcriptText = event.results[current][0].transcript;
-          setTranscript(transcriptText);
-
-          if (event.results[current].isFinal) {
-            onTranscript(transcriptText);
-            setTranscript('');
-            recognition.stop();
+      try {
+        if (!recognitionRef.current) {
+          const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (!SpeechRecognitionImpl) {
+            toast.error("Speech recognition is not supported in your browser");
+            return;
           }
-        };
+          
+          recognitionRef.current = new SpeechRecognitionImpl();
+          const recognition = recognitionRef.current;
+          recognition.continuous = false;
+          recognition.interimResults = true;
 
-        recognition.onend = () => {
-          setIsListening(false);
-          // Don't automatically restart - wait for bot response
-        };
+          recognition.onstart = () => {
+            setIsListening(true);
+            onStateChange?.('listening');
+            toast.success("Listening...");
+          };
 
-        recognition.onerror = (event) => {
-          console.error('Speech recognition error:', event.error);
-          setIsListening(false);
-        };
+          recognition.onresult = (event) => {
+            const current = event.resultIndex;
+            const transcriptText = event.results[current][0].transcript;
+            setTranscript(transcriptText);
+
+            if (event.results[current].isFinal) {
+              onTranscript(transcriptText);
+              setTranscript('');
+              recognition.stop();
+            }
+          };
+
+          recognition.onend = () => {
+            setIsListening(false);
+            if (!isProcessing && !isSpeakingRef.current) {
+              onStateChange?.('idle');
+            }
+          };
+
+          recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            setIsListening(false);
+            if (event.error !== 'aborted') {
+              toast.error(`Speech recognition error: ${event.error}`);
+            }
+            onStateChange?.('idle');
+          };
+        }
+      } catch (error) {
+        console.error('Error setting up speech recognition:', error);
+        toast.error("Failed to initialize speech recognition");
       }
     };
 
@@ -69,7 +87,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         recognitionRef.current.abort();
       }
     };
-  }, [onTranscript, onStateChange]);
+  }, [onTranscript, onStateChange, isProcessing]);
 
   // Handle bot's text-to-speech response
   useEffect(() => {
@@ -85,15 +103,22 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
       onStateChange?.('speaking');
 
       // Speak the response
-      speak(lastResponse).then(() => {
-        // After speaking finishes, wait a moment then start listening again
-        setTimeout(() => {
+      speak(lastResponse)
+        .then(() => {
+          // After speaking finishes, wait a moment then start listening again
+          setTimeout(() => {
+            isSpeakingRef.current = false;
+            if (!isProcessing) {
+              startListening();
+            }
+          }, 1000);
+        })
+        .catch((error) => {
+          console.error('Text-to-speech error:', error);
+          toast.error("Failed to speak response");
           isSpeakingRef.current = false;
-          if (!isProcessing) {
-            startListening();
-          }
-        }, 1000);
-      });
+          onStateChange?.('idle');
+        });
 
       return () => {
         stopSpeaking();
@@ -115,12 +140,16 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
 
   const startListening = () => {
     if (!recognitionRef.current || isSpeakingRef.current || isProcessing) return;
+    
     try {
       recognitionRef.current.start();
       setIsListening(true);
       onStateChange?.('listening');
     } catch (error) {
       console.error('Error starting recognition:', error);
+      toast.error("Failed to start listening");
+      setIsListening(false);
+      onStateChange?.('idle');
     }
   };
 
@@ -157,10 +186,10 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           <Button
             size="icon"
-            variant="ghost"
+            variant={isListening ? "default" : "ghost"}
             onClick={startListening}
             disabled={isProcessing || isSpeakingRef.current}
-            className={isListening ? 'text-blue-500' : ''}
+            className={`transition-colors ${isListening ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
           >
             <Mic className="h-4 w-4" />
           </Button>
