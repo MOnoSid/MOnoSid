@@ -27,7 +27,8 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
   useEffect(() => {
     const setupRecognition = () => {
       if (!recognitionRef.current) {
-        recognitionRef.current = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognitionRef.current = new SpeechRecognitionImpl();
         const recognition = recognitionRef.current;
         recognition.continuous = false;
         recognition.interimResults = true;
