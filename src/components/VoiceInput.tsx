@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { speak, stopSpeaking } from '@/utils/tts';
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Mic, Send } from "lucide-react"
-import { toast } from "sonner"
+import { Button } from "@/components/ui/button";
+import { PhoneCall, PhoneOff } from "lucide-react";
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
@@ -12,248 +9,196 @@ interface VoiceInputProps {
   onStateChange?: (state: 'idle' | 'listening' | 'speaking' | 'thinking') => void;
 }
 
-const VoiceInput: React.FC<VoiceInputProps> = ({ 
-  onTranscript, 
-  isProcessing, 
+const VoiceInput: React.FC<VoiceInputProps> = ({
+  onTranscript,
+  isProcessing,
   lastResponse,
-  onStateChange 
+  onStateChange
 }) => {
-  const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [inputText, setInputText] = useState('');
-  const [isContinuousMode, setIsContinuousMode] = useState(false);
-  const [hasMicPermission, setHasMicPermission] = useState(false);
+  const [isActive, setIsActive] = useState(false);
+  const [currentTranscript, setCurrentTranscript] = useState('');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const isSpeakingRef = useRef(false);
-
-  // Request microphone permission
-  const requestMicrophonePermission = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop()); // Stop the stream after getting permission
-      setHasMicPermission(true);
-      return true;
-    } catch (error) {
-      console.error('Error accessing microphone:', error);
-      toast.error("Please allow microphone access to use voice input");
-      setHasMicPermission(false);
-      return false;
-    }
-  };
+  const synthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // Initialize speech recognition
   useEffect(() => {
-    const setupRecognition = () => {
-      try {
-        if (!recognitionRef.current) {
-          const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
-          if (!SpeechRecognitionImpl) {
-            toast.error("Speech recognition is not supported in your browser");
-            return;
-          }
-          
-          recognitionRef.current = new SpeechRecognitionImpl();
-          const recognition = recognitionRef.current;
-          recognition.continuous = false;
-          recognition.interimResults = true;
-
-          recognition.onstart = () => {
-            setIsListening(true);
-            onStateChange?.('listening');
-            toast.success("Listening...");
-          };
-
-          recognition.onresult = (event) => {
-            const current = event.resultIndex;
-            const transcriptText = event.results[current][0].transcript;
-            setTranscript(transcriptText);
-
-            if (event.results[current].isFinal) {
-              onTranscript(transcriptText);
-              setTranscript('');
-              if (!isContinuousMode) {
-                recognition.stop();
-              }
-            }
-          };
-
-          recognition.onend = () => {
-            setIsListening(false);
-            if (!isProcessing && !isSpeakingRef.current) {
-              onStateChange?.('idle');
-              // If in continuous mode and not processing, start listening again
-              if (isContinuousMode && !isProcessing && !isSpeakingRef.current) {
-                setTimeout(() => startListening(), 1000);
-              }
-            }
-          };
-
-          recognition.onerror = (event) => {
-            console.error('Speech recognition error:', event.error);
-            setIsListening(false);
-            if (event.error !== 'aborted') {
-              toast.error(`Speech recognition error: ${event.error}`);
-            }
-            onStateChange?.('idle');
-            setIsContinuousMode(false);
-          };
-        }
-      } catch (error) {
-        console.error('Error setting up speech recognition:', error);
-        toast.error("Failed to initialize speech recognition");
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true; // Enable interim results for real-time transcript
+        recognition.lang = 'en-US';
+        recognitionRef.current = recognition;
       }
-    };
-
-    setupRecognition();
-
+    }
+    
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.abort();
+        recognitionRef.current.stop();
+      }
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      setCurrentTranscript('');
+    };
+  }, []);
+
+  // Handle start/stop listening
+  const startListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
+        onStateChange?.('listening');
+      } catch (error) {
+        console.error('Failed to start recognition:', error);
+      }
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (error) {
+        console.error('Failed to stop recognition:', error);
+      }
+    }
+  };
+
+  // Set up recognition event handlers
+  useEffect(() => {
+    if (!recognitionRef.current) return;
+
+    const recognition = recognitionRef.current;
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      
+      // Update current transcript for display
+      setCurrentTranscript(transcript);
+      
+      // Only send final results to the AI
+      if (event.results[0].isFinal && transcript.trim()) {
+        onTranscript(transcript.trim());
+        setCurrentTranscript('');
+        onStateChange?.('thinking');
       }
     };
-  }, [onTranscript, onStateChange, isProcessing, isContinuousMode]);
 
-  // Handle bot's text-to-speech response
-  useEffect(() => {
-    if (lastResponse && !isProcessing) {
-      // Stop any ongoing listening
-      if (recognitionRef.current && isListening) {
-        recognitionRef.current.abort();
-        setIsListening(false);
+    recognition.onend = () => {
+      if (isActive && !isProcessing) {
+        // Small delay before restarting
+        setTimeout(startListening, 100);
       }
+    };
 
-      // Mark as speaking and update state
-      isSpeakingRef.current = true;
-      onStateChange?.('speaking');
-
-      // Speak the response
-      speak(lastResponse)
-        .then(() => {
-          // After speaking finishes, wait a moment then start listening again if in continuous mode
-          setTimeout(() => {
-            isSpeakingRef.current = false;
-            if (!isProcessing && isContinuousMode) {
-              startListening();
-            } else {
-              onStateChange?.('idle');
-            }
-          }, 1000);
-        })
-        .catch((error) => {
-          console.error('Text-to-speech error:', error);
-          toast.error("Failed to speak response");
-          isSpeakingRef.current = false;
-          onStateChange?.('idle');
-          setIsContinuousMode(false);
-        });
-
-      return () => {
-        stopSpeaking();
-        isSpeakingRef.current = false;
-      };
-    }
-  }, [lastResponse, isProcessing, onStateChange, isListening, isContinuousMode]);
-
-  // Handle processing state
-  useEffect(() => {
-    if (isProcessing) {
-      if (recognitionRef.current && isListening) {
-        recognitionRef.current.abort();
-        setIsListening(false);
+    recognition.onerror = (event) => {
+      console.error('Recognition error:', event.error);
+      if (event.error === 'not-allowed') {
+        setIsActive(false);
       }
-      onStateChange?.('thinking');
-    }
-  }, [isProcessing, isListening, onStateChange]);
+      setCurrentTranscript('');
+    };
+  }, [isActive, isProcessing, onTranscript, onStateChange]);
 
-  const startListening = async () => {
-    if (!recognitionRef.current || isSpeakingRef.current || isProcessing) return;
+  // Handle AI response
+  useEffect(() => {
+    if (!lastResponse || !isActive || !window.speechSynthesis) return;
+
+    stopListening();
     
-    try {
-      // Check/request microphone permission before starting
-      const hasPermission = hasMicPermission || await requestMicrophonePermission();
-      if (!hasPermission) return;
+    const utterance = new SpeechSynthesisUtterance(lastResponse);
+    synthesisRef.current = utterance;
 
-      recognitionRef.current.start();
-      setIsListening(true);
-      onStateChange?.('listening');
-    } catch (error) {
-      console.error('Error starting recognition:', error);
-      toast.error("Failed to start listening");
-      setIsListening(false);
-      onStateChange?.('idle');
-      setIsContinuousMode(false);
+    // Get voices and select a female English voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const voice = voices.find(v => 
+      v.lang.includes('en') && v.name.includes('Female')
+    ) || voices.find(v => v.lang.includes('en')) || voices[0];
+
+    if (voice) {
+      utterance.voice = voice;
     }
-  };
 
-  const toggleContinuousMode = async () => {
-    if (!isContinuousMode) {
-      // Check/request microphone permission before enabling continuous mode
-      const hasPermission = hasMicPermission || await requestMicrophonePermission();
-      if (!hasPermission) return;
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
 
-      setIsContinuousMode(true);
-      startListening();
-    } else {
-      setIsContinuousMode(false);
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
+    utterance.onstart = () => {
+      onStateChange?.('speaking');
+    };
+
+    utterance.onend = () => {
+      if (isActive && !isProcessing) {
+        startListening();
       }
-      stopSpeaking();
-      setIsListening(false);
+      synthesisRef.current = null;
+    };
+
+    utterance.onerror = (event) => {
+      console.error('Synthesis error:', event);
+      if (isActive && !isProcessing) {
+        startListening();
+      }
+      synthesisRef.current = null;
+    };
+
+    window.speechSynthesis.speak(utterance);
+
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, [lastResponse, isActive, isProcessing, onStateChange]);
+
+  // Handle conversation toggle
+  const toggleConversation = async () => {
+    if (isActive) {
+      setIsActive(false);
+      stopListening();
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
       onStateChange?.('idle');
-    }
-  };
-
-  const handleSendText = () => {
-    if (inputText.trim()) {
-      onTranscript(inputText.trim());
-      setInputText('');
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendText();
+    } else {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        setIsActive(true);
+        startListening();
+      } catch (error) {
+        console.error('Microphone access denied:', error);
+      }
     }
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="relative flex-1">
-        <Input
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder={
-            transcript || 
-            (isListening ? 'Listening...' : 
-            isSpeakingRef.current ? 'Bot is speaking...' : 
-            isProcessing ? 'Processing...' : 
-            'Type a message or click microphone to speak...')
-          }
-          className="pr-20"
-        />
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          <Button
-            size="icon"
-            variant={isContinuousMode ? "default" : "ghost"}
-            onClick={toggleContinuousMode}
-            disabled={isProcessing || isSpeakingRef.current}
-            className={`transition-colors ${isContinuousMode ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
-          >
-            <Mic className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleSendText}
-            disabled={!inputText.trim()}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+    <div className="flex flex-col items-center justify-center gap-4">
+      {isActive && !isProcessing && currentTranscript && (
+        <div className="text-lg text-gray-700 bg-gray-100 rounded-lg p-4 min-h-[50px] w-full max-w-2xl text-center">
+          {currentTranscript}
         </div>
-      </div>
+      )}
+      <Button
+        size="lg"
+        variant={isActive ? "destructive" : "default"}
+        onClick={toggleConversation}
+        disabled={isProcessing}
+        className={`transition-all ${
+          isActive ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
+        }`}
+      >
+        {isActive ? (
+          <>
+            <PhoneOff className="h-5 w-5 mr-2" />
+            {isProcessing ? 'Processing...' : 'End Session'}
+          </>
+        ) : (
+          <>
+            <PhoneCall className="h-5 w-5 mr-2" />
+            Start Session
+          </>
+        )}
+      </Button>
     </div>
   );
 };

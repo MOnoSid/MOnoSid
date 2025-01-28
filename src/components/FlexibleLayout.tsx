@@ -13,6 +13,8 @@ interface FlexibleLayoutProps {
   isProcessing: boolean;
   lastResponse?: string;
   onFrame: (imageData: string) => void;
+  conversationState: 'idle' | 'listening' | 'speaking' | 'thinking';
+  onStateChange: (state: 'idle' | 'listening' | 'speaking' | 'thinking') => void;
 }
 
 const FlexibleLayout = ({ 
@@ -20,12 +22,13 @@ const FlexibleLayout = ({
   onSendMessage, 
   isProcessing, 
   lastResponse,
-  onFrame 
+  onFrame,
+  conversationState,
+  onStateChange
 }: FlexibleLayoutProps) => {
   const navigate = useNavigate();
   const [videoSize, setVideoSize] = useState(500);
   const [isMobile, setIsMobile] = useState(false);
-  const [avatarState, setAvatarState] = useState<'idle' | 'listening' | 'speaking' | 'thinking'>('idle');
   
   // Handle responsive layout
   useEffect(() => {
@@ -99,7 +102,7 @@ const FlexibleLayout = ({
                 onFrame={onFrame}
                 botResponse={lastResponse}
                 isLoading={isProcessing}
-                avatarState={avatarState}
+                avatarState={conversationState}
               />
             </div>
           </div>
@@ -129,7 +132,7 @@ const FlexibleLayout = ({
                 onTranscript={onSendMessage}
                 isProcessing={isProcessing}
                 lastResponse={lastResponse}
-                onStateChange={setAvatarState}
+                onStateChange={onStateChange}
               />
             </div>
           </div>

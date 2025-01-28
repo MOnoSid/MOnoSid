@@ -10,6 +10,7 @@ const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastResponse, setLastResponse] = useState<string>();
   const [lastFrame, setLastFrame] = useState<string>("");
+  const [conversationState, setConversationState] = useState<'idle' | 'listening' | 'speaking' | 'thinking'>('idle');
 
   useEffect(() => {
     // Initialize Gemini with API key from environment variable
@@ -32,6 +33,7 @@ const Index = () => {
     const userMessage = { text, isUser: true };
     setMessages(prev => [...prev, userMessage]);
     setIsProcessing(true);
+    setConversationState('thinking');
 
     try {
       // Get AI response based on text and image
@@ -56,6 +58,8 @@ const Index = () => {
       isProcessing={isProcessing}
       lastResponse={lastResponse}
       onFrame={handleFrame}
+      conversationState={conversationState}
+      onStateChange={setConversationState}
     />
   );
 };
