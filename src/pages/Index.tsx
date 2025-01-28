@@ -1,86 +1,62 @@
-import React, { useState, useEffect } from "react";
-import VideoFeed from "@/components/VideoFeed";
-import VoiceInput from "@/components/VoiceInput";
-import TherapyChat from "@/components/TherapyChat";
-import { getTherapyResponse, initializeGemini } from "@/utils/gemini";
-import { useToast } from "@/components/ui/use-toast";
-
-interface Message {
-  text: string;
-  isUser: boolean;
-}
+import React, { useState, useEffect } from 'react';
+import FlexibleLayout from '@/components/FlexibleLayout';
+import { getTherapyResponse, initializeGemini } from '@/utils/gemini';
 
 const Index = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      text: "Hello! I'm Dr. Sky, your professional AI therapist. I'm here to provide a safe, confidential space for you to share your thoughts and feelings. How are you feeling today?",
-      isUser: false,
-    },
-  ]);
-  const [lastFrame, setLastFrame] = useState<string>("");
+  const [messages, setMessages] = useState<any[]>([{
+    text: "Hello! I'm Dr. Sky, your professional AI therapist. I'm here to provide a safe, confidential space for you to share your thoughts and feelings. How are you feeling today?",
+    isUser: false
+  }]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { toast } = useToast();
+  const [lastResponse, setLastResponse] = useState<string>();
+  const [lastFrame, setLastFrame] = useState<string>("");
 
   useEffect(() => {
-    initializeGemini("AIzaSyDJHyNLVHEljoWyg9jVeV0rI-An-LdmAyw");
+    // Initialize Gemini with API key from environment variable
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('Gemini API key is missing! Please add VITE_GEMINI_API_KEY to your .env file');
+      return;
+    }
+    initializeGemini(apiKey);
   }, []);
 
   const handleFrame = (imageData: string) => {
     setLastFrame(imageData);
   };
 
-  const handleTranscript = async (text: string) => {
-    if (text.trim() && !isProcessing) {
-      setIsProcessing(true);
-      
-      // Add user message
-      setMessages((prev) => [...prev, { text, isUser: true }]);
-      
-      try {
-        // Get AI response based on text and image
-        const response = await getTherapyResponse(text, lastFrame);
-        
-        // Add AI response
-        setMessages((prev) => [...prev, { text: response, isUser: false }]);
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to get AI response. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsProcessing(false);
-      }
+  const handleSendMessage = async (text: string) => {
+    if (!text.trim() || isProcessing) return;
+
+    // Add user message
+    const userMessage = { text, isUser: true };
+    setMessages(prev => [...prev, userMessage]);
+    setIsProcessing(true);
+
+    try {
+      // Get AI response based on text and image
+      const response = await getTherapyResponse(text, lastFrame);
+      setLastResponse(response);
+      setMessages(prev => [...prev, { text: response, isUser: false }]);
+    } catch (error) {
+      console.error('Error getting response:', error);
+      setMessages(prev => [...prev, { 
+        text: "I apologize, but I'm having trouble processing your message. Could you please try again?", 
+        isUser: false 
+      }]);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F7FAFC] to-white">
-      <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold text-therapy-text bg-clip-text text-transparent bg-gradient-to-r from-therapy-primary to-therapy-secondary">
-            Professional Therapy Session
-          </h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Experience a safe and confidential space for emotional support and personal growth
-          </p>
-        </header>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-lg p-4 border border-gray-100">
-              <VideoFeed onFrame={handleFrame} />
-            </div>
-            <div className="flex justify-center">
-              <VoiceInput onTranscript={handleTranscript} />
-            </div>
-          </div>
-          <div className="h-full">
-            <TherapyChat messages={messages} />
-          </div>
-        </div>
-      </div>
-    </div>
+    <FlexibleLayout
+      messages={messages}
+      onSendMessage={handleSendMessage}
+      isProcessing={isProcessing}
+      lastResponse={lastResponse}
+      onFrame={handleFrame}
+    />
   );
 };
 
