@@ -15,7 +15,8 @@ export const getTherapyResponse = async (
       return "I apologize, but I need to be properly configured with an API key to provide therapy services. Please ensure the API key is set up correctly.";
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+    // Using gemini-1.5-flash model instead of the deprecated gemini-pro-vision
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `You are Dr. Sky, a highly empathetic and professional AI therapist. Your responses should:
     1. Be concise but meaningful (2-3 sentences max)
