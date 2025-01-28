@@ -22,8 +22,24 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
   const [transcript, setTranscript] = useState('');
   const [inputText, setInputText] = useState('');
   const [isContinuousMode, setIsContinuousMode] = useState(false);
+  const [hasMicPermission, setHasMicPermission] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isSpeakingRef = useRef(false);
+
+  // Request microphone permission
+  const requestMicrophonePermission = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop()); // Stop the stream after getting permission
+      setHasMicPermission(true);
+      return true;
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      toast.error("Please allow microphone access to use voice input");
+      setHasMicPermission(false);
+      return false;
+    }
+  };
 
   // Initialize speech recognition
   useEffect(() => {
@@ -55,7 +71,9 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
             if (event.results[current].isFinal) {
               onTranscript(transcriptText);
               setTranscript('');
-              recognition.stop();
+              if (!isContinuousMode) {
+                recognition.stop();
+              }
             }
           };
 
@@ -147,10 +165,14 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
     }
   }, [isProcessing, isListening, onStateChange]);
 
-  const startListening = () => {
+  const startListening = async () => {
     if (!recognitionRef.current || isSpeakingRef.current || isProcessing) return;
     
     try {
+      // Check/request microphone permission before starting
+      const hasPermission = hasMicPermission || await requestMicrophonePermission();
+      if (!hasPermission) return;
+
       recognitionRef.current.start();
       setIsListening(true);
       onStateChange?.('listening');
@@ -163,8 +185,12 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
     }
   };
 
-  const toggleContinuousMode = () => {
+  const toggleContinuousMode = async () => {
     if (!isContinuousMode) {
+      // Check/request microphone permission before enabling continuous mode
+      const hasPermission = hasMicPermission || await requestMicrophonePermission();
+      if (!hasPermission) return;
+
       setIsContinuousMode(true);
       startListening();
     } else {
