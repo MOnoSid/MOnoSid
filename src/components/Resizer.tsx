@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 
 interface ResizerProps {
   onResize: (newSize: number) => void;
@@ -9,10 +9,13 @@ interface ResizerProps {
 const Resizer = ({ onResize, minWidth = 200, maxWidth = 800 }: ResizerProps) => {
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleResize = useCallback((clientX: number) => {
-    const newWidth = Math.max(minWidth, Math.min(maxWidth, clientX));
-    onResize(newWidth);
-  }, [minWidth, maxWidth, onResize]);
+  const handleResize = useCallback(
+    (clientX: number) => {
+      const newWidth = Math.max(minWidth, Math.min(maxWidth, clientX));
+      onResize(newWidth);
+    },
+    [minWidth, maxWidth, onResize]
+  );
 
   useEffect(() => {
     if (!isDragging) return;
@@ -24,18 +27,18 @@ const Resizer = ({ onResize, minWidth = 200, maxWidth = 800 }: ResizerProps) => 
 
     const handleMouseUp = () => {
       setIsDragging(false);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isDragging, handleResize]);
 
@@ -45,15 +48,16 @@ const Resizer = ({ onResize, minWidth = 200, maxWidth = 800 }: ResizerProps) => 
   };
 
   return (
-    <div className="relative select-none h-full">
+    <div className="relative h-full select-none">
       {/* Drag Handle Area */}
       <div
-        className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize"
+        className="absolute inset-y-0 left-1/2 w-6 transform -translate-x-1/2 cursor-col-resize hover:bg-gray-300"
         onMouseDown={handleMouseDown}
+        title="Drag to resize" // Tooltip for better UX
       />
 
-      {/* Vertical Line */}
-      <div className="absolute inset-y-0 left-1/2 w-[1px] bg-therapy-border-light/10" />
+      {/* Darker and Thicker Vertical Line */}
+      <div className="absolute inset-y-0 left-1/2 transform -translate-x-1/2 w-[2px] bg-gray-200" />
     </div>
   );
 };

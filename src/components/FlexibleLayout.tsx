@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TherapyChat from './TherapyChat';
 import VoiceInput from './VoiceInput';
 import VideoFeed from './VideoFeed';
 import Resizer from './Resizer';
+import ProgressTracker from './ProgressTracker';
+import ContentRecommendations from './ContentRecommendations';
 import { Button } from './ui/button';
 import { MessageSquare } from 'lucide-react';
+import { initializeProgressTracker } from '@/utils/progressTracking';
+import { initializeContentRecommender } from '@/utils/contentRecommender';
+import { useToast } from '@/components/ui/use-toast';
 
 interface FlexibleLayoutProps {
   messages: any[];
@@ -29,7 +34,86 @@ const FlexibleLayout = ({
   const navigate = useNavigate();
   const [videoSize, setVideoSize] = useState(500);
   const [isMobile, setIsMobile] = useState(false);
-  
+  const [showProgress, setShowProgress] = useState(false);
+  const [progressData, setProgressData] = useState({
+    sessionSummary: "",
+    goals: [],
+    improvements: {
+      strengths: [],
+      challenges: [],
+      recommendations: []
+    }
+  });
+  const [contentRecommendations, setContentRecommendations] = useState({
+    meditation: [],
+    relaxation: [],
+    educational: [],
+    motivation: [],
+    breathing: [],
+    mindfulness: [],
+    exercise: [],
+    sleep: [],
+    reason: ''
+  });
+  const [isUpdating, setIsUpdating] = useState(false);
+  const { toast } = useToast();
+  const [updateTimeout, setUpdateTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  const updateProgressAndRecommendations = useCallback(async () => {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey || messages.length <= 1 || isUpdating) return;
+
+    try {
+      setIsUpdating(true);
+      const progressTracker = initializeProgressTracker(apiKey);
+      const contentRecommender = initializeContentRecommender(apiKey);
+      
+      const conversation = messages.map(m => `${m.isUser ? 'User' : 'Dr. Sky'}: ${m.text}`);
+      
+      // Get progress data
+      const progress = await progressTracker.trackProgress(conversation);
+      setProgressData(progress);
+      await progressTracker.saveProgress(progress);
+
+      // Get content recommendations based on emotional state
+      const recommendations = await contentRecommender.getRecommendations(
+        progress.improvements.challenges[0] || 'neutral',
+        progress.sessionSummary
+      );
+      setContentRecommendations(recommendations);
+    } catch (error: any) {
+      console.error('Error updating progress:', error);
+      if (error.message?.includes('429')) {
+        toast({
+          title: "Rate Limit Reached",
+          description: "Please wait a moment before getting new recommendations.",
+          variant: "destructive"
+        });
+      }
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [messages, isUpdating, toast]);
+
+  // Debounced update effect
+  useEffect(() => {
+    if (updateTimeout) {
+      clearTimeout(updateTimeout);
+    }
+
+    const timeout = setTimeout(() => {
+      updateProgressAndRecommendations();
+    }, 5000); // Wait 5 seconds after last message before updating
+
+    setUpdateTimeout(timeout);
+
+    return () => {
+      if (updateTimeout) {
+        clearTimeout(updateTimeout);
+      }
+    };
+  }, [messages, updateProgressAndRecommendations]);
+
   // Handle responsive layout
   useEffect(() => {
     const handleResize = () => {
@@ -51,17 +135,28 @@ const FlexibleLayout = ({
       <div className="flex justify-between items-center px-4 py-3 bg-therapy-surface/80 backdrop-blur-sm border-b border-therapy-border-light/10 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-semibold text-therapy-text-primary">
-            Empathetic Dialogue
+            MonoSid
           </h1>
         </div>
-        <Button
-          variant="ghost"
-          className="text-therapy-text-primary"
-          onClick={() => navigate('/feedback')}
-        >
-          <MessageSquare className="w-5 h-5 mr-2" />
-          Feedback
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowProgress(!showProgress)}
+            className="text-therapy-text-primary"
+            disabled={isUpdating}
+          >
+            {isUpdating ? 'Updating...' : (showProgress ? 'Hide Progress' : 'Show Progress')}
+          </Button>
+          <Button
+            variant="ghost"
+            className="text-therapy-text-primary"
+            onClick={() => navigate('/feedback')}
+          >
+            <MessageSquare className="w-5 h-5 mr-2" />
+            Feedback
+          </Button>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -122,10 +217,20 @@ const FlexibleLayout = ({
             ${isMobile ? 'h-[55vh]' : 'min-h-0'}
           `}>
             {/* Chat Messages */}
-            <div className="flex-1 bg-therapy-surface rounded-xl border border-therapy-border-light/10 overflow-hidden">
-              <TherapyChat messages={messages} />
-            </div>
-
+            {showProgress ? (
+              <div className="space-y-6">
+                <ProgressTracker
+                  sessionSummary={progressData.sessionSummary}
+                  goals={progressData.goals}
+                  improvements={progressData.improvements}
+                />
+                <ContentRecommendations recommendations={contentRecommendations} />
+              </div>
+            ) : (
+              <div className="flex-1 bg-therapy-surface rounded-xl border border-therapy-border-light/10 overflow-hidden">
+                <TherapyChat messages={messages} />
+              </div>
+            )}
             {/* Voice Input */}
             <div className="bg-therapy-surface p-4 rounded-xl border border-therapy-border-light/10">
               <VoiceInput
