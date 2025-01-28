@@ -20,13 +20,26 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isSpeakingRef = useRef(false);
 
+  // Start listening for user input
+  const startListening = () => {
+    if (!recognitionRef.current || isSpeakingRef.current || !isConversationActive) return;
+    
+    try {
+      recognitionRef.current.start();
+      setIsListening(true);
+      onStateChange?.('listening');
+    } catch (error) {
+      console.error('Error starting recognition:', error);
+    }
+  };
+
   // Initialize speech recognition
   useEffect(() => {
     const setupRecognition = () => {
       if (!recognitionRef.current) {
         recognitionRef.current = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         const recognition = recognitionRef.current;
-        recognition.continuous = true;
+        recognition.continuous = false;
         recognition.interimResults = true;
 
         recognition.onstart = () => {
@@ -35,8 +48,10 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         };
 
         recognition.onresult = (event) => {
-          // Ignore results if bot is speaking
-          if (isSpeakingRef.current) return;
+          if (isSpeakingRef.current) {
+            recognition.abort();
+            return;
+          }
 
           const current = event.resultIndex;
           const transcriptText = event.results[current][0].transcript;
@@ -45,28 +60,24 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
           if (event.results[current].isFinal) {
             onTranscript(transcriptText);
             setTranscript('');
+            recognition.stop(); // Stop after getting final result
           }
         };
 
         recognition.onend = () => {
           setIsListening(false);
-          // Only restart if the conversation is active and bot is not speaking
-          if (isConversationActive && !isSpeakingRef.current && !isProcessing) {
-            recognition.start();
-          }
+          // Don't automatically restart - wait for bot response
         };
 
         recognition.onerror = (event) => {
           console.error('Speech recognition error:', event.error);
           setIsListening(false);
-          if (isConversationActive && !isSpeakingRef.current && !isProcessing) {
-            // Try to restart on error if conversation is active and bot is not speaking
-            setTimeout(() => {
-              if (isConversationActive && !isSpeakingRef.current && !isProcessing) {
-                recognition.start();
-              }
-            }, 1000);
-          }
+          // Wait a bit and try to restart listening if still in conversation
+          setTimeout(() => {
+            if (isConversationActive && !isSpeakingRef.current && !isProcessing) {
+              startListening();
+            }
+          }, 1000);
         };
       }
     };
@@ -75,7 +86,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
 
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        recognitionRef.current.abort();
       }
     };
   }, [isConversationActive, isProcessing, onTranscript, onStateChange]);
@@ -83,20 +94,25 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
   // Handle bot's text-to-speech response
   useEffect(() => {
     if (lastResponse && isConversationActive) {
-      // Stop listening while bot speaks
-      isSpeakingRef.current = true;
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
+      // Stop any ongoing listening
+      if (recognitionRef.current && isListening) {
+        recognitionRef.current.abort();
+        setIsListening(false);
       }
+
+      // Mark as speaking and update state
+      isSpeakingRef.current = true;
       onStateChange?.('speaking');
 
       // Speak the response
       speak(lastResponse, () => {
-        // Resume listening after speaking finishes
-        isSpeakingRef.current = false;
-        if (isConversationActive && !isProcessing) {
-          recognitionRef.current?.start();
-        }
+        // After speaking finishes, wait a moment then start listening again
+        setTimeout(() => {
+          isSpeakingRef.current = false;
+          if (isConversationActive && !isProcessing) {
+            startListening(); // Resume listening for next user input
+          }
+        }, 1000); // Short pause after speaking
       });
 
       return () => {
@@ -104,18 +120,22 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         isSpeakingRef.current = false;
       };
     }
-  }, [lastResponse, isConversationActive, isProcessing, onStateChange]);
+  }, [lastResponse, isConversationActive, isProcessing, onStateChange, isListening]);
 
   // Handle processing state
   useEffect(() => {
-    if (isProcessing && isListening) {
-      recognitionRef.current?.stop();
+    if (isProcessing) {
+      if (recognitionRef.current && isListening) {
+        recognitionRef.current.abort();
+        setIsListening(false);
+      }
+      onStateChange?.('thinking');
     }
-  }, [isProcessing, isListening]);
+  }, [isProcessing, isListening, onStateChange]);
 
   const startConversation = () => {
     setIsConversationActive(true);
-    recognitionRef.current?.start();
+    startListening();
   };
 
   const stopConversation = () => {
@@ -123,7 +143,9 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
     setIsListening(false);
     isSpeakingRef.current = false;
     stopSpeaking();
-    recognitionRef.current?.stop();
+    if (recognitionRef.current) {
+      recognitionRef.current.abort();
+    }
     onStateChange?.('idle');
   };
 
@@ -133,7 +155,8 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         <p className="text-sm text-therapy-text-muted">
           {transcript || (isListening ? 'Listening...' : 
             isSpeakingRef.current ? 'Bot is speaking...' : 
-            isConversationActive ? 'Conversation active...' : 
+            isProcessing ? 'Processing...' :
+            isConversationActive ? 'Ready for your input...' : 
             'Click to start conversation')}
         </p>
       </div>
