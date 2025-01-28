@@ -24,7 +24,13 @@ const Feedback = () => {
     try {
       const { error } = await supabase
         .from("feedback")
-        .insert([formData]);
+        .insert([
+          {
+            name: formData.name,
+            email: formData.email,
+            feedback: formData.feedback,
+          }
+        ]);
 
       if (error) throw error;
 
