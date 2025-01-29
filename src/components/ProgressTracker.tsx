@@ -73,20 +73,23 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({
   const formatSummary = (text: string) => {
     if (!text) return null;
     
-    const sections = text.split(/\d\./).filter(Boolean);
+    // Replace double asterisks with emphasis tags
+    const processedText = text.replace(/\*\*(.*?)\*\*/g, '<em>$1</em>');
+    
+    const sections = processedText.split(/\d\./).filter(Boolean);
     if (sections.length > 1) {
       return (
         <div className="space-y-2">
           {sections.map((section, index) => (
             <div key={index} className="flex items-start gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2" />
-              <p className="text-gray-700">{section.trim()}</p>
+              <p className="text-gray-700" dangerouslySetInnerHTML={{ __html: section.trim() }} />
             </div>
           ))}
         </div>
       );
     }
-    return <p className="text-gray-700">{text}</p>;
+    return <p className="text-gray-700" dangerouslySetInnerHTML={{ __html: processedText }} />;
   };
 
   const getStatusColor = (status?: string) => {
@@ -105,27 +108,39 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({
     const emotions = emotionalJourney?.emotions || [];
     return emotions.map((entry) => {
       try {
-        const date = new Date(entry.timestamp);
+        // Clean the timestamp by removing asterisks
+        const cleanTimestamp = entry.timestamp.replace(/\*/g, '').trim();
+        const date = new Date(cleanTimestamp);
+        if (isNaN(date.getTime())) {
+          throw new Error('Invalid date');
+        }
         return {
-          time: date.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
+          time: date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
             minute: '2-digit'
           }),
           value: entry.value || 0,
           emotion: entry.emotion || 'neutral',
-          tooltipTime: date.toLocaleTimeString('en-US', {
+          tooltipTime: date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit'
           })
         };
       } catch (error) {
-        console.error('Error processing emotion entry:', error);
+        console.error('Error processing emotion entry:', error, entry);
+        // Clean the timestamp for display even in error case
+        const displayTimestamp = entry.timestamp?.replace(/\*/g, '').trim() || 'Invalid Date';
         return {
-          time: 'Invalid Time',
-          value: 0,
-          emotion: 'unknown',
-          tooltipTime: 'Invalid Time'
+          time: displayTimestamp,
+          value: entry.value || 0,
+          emotion: entry.emotion || 'unknown',
+          tooltipTime: displayTimestamp
         };
       }
     });
