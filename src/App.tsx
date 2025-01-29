@@ -7,6 +7,7 @@ import { StrictMode } from "react";
 import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Feedback from "./pages/Feedback";
+import Progress from "./pages/Progress";
 
 // Create a client
 const queryClient = new QueryClient({
@@ -29,6 +30,9 @@ const App = () => {
               
               {/* Therapy session route */}
               <Route path="/therapy" element={<Index />} />
+              
+              {/* Progress page route */}
+              <Route path="/progress" element={<Progress />} />
               
               {/* Feedback route */}
               <Route path="/feedback" element={<Feedback />} />

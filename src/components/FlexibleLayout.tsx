@@ -13,37 +13,45 @@ import { initializeContentRecommender } from '@/utils/contentRecommender';
 import { useToast } from '@/components/ui/use-toast';
 
 interface FlexibleLayoutProps {
-  messages: any[];
-  onSendMessage: (text: string) => void;
+  messages: Array<{ isUser: boolean; text: string; timestamp?: number }>;
+  onSendMessage: (message: string) => void;
   isProcessing: boolean;
-  lastResponse?: string;
-  onFrame: (imageData: string) => void;
-  conversationState: 'idle' | 'listening' | 'speaking' | 'thinking';
-  onStateChange: (state: 'idle' | 'listening' | 'speaking' | 'thinking') => void;
+  lastResponse: string;
+  onFrame?: (frame: ImageData) => void;
+  conversationState?: any;
+  onStateChange?: (state: any) => void;
 }
 
 const FlexibleLayout = ({ 
   messages, 
   onSendMessage, 
   isProcessing, 
-  lastResponse,
-  onFrame,
-  conversationState,
-  onStateChange
+  lastResponse, 
+  onFrame, 
+  conversationState, 
+  onStateChange 
 }: FlexibleLayoutProps) => {
   const navigate = useNavigate();
   const [videoSize, setVideoSize] = useState(500);
   const [isMobile, setIsMobile] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [sessionEnded, setSessionEnded] = useState(false);
   const [progressData, setProgressData] = useState({
-    sessionSummary: "",
+    sessionSummary: '',
     goals: [],
     improvements: {
       strengths: [],
       challenges: [],
       recommendations: []
+    },
+    emotionalJourney: {
+      emotions: [],
+      dominantEmotions: [],
+      engagementLevel: []
     }
   });
+
   const [contentRecommendations, setContentRecommendations] = useState({
     meditation: [],
     relaxation: [],
@@ -55,64 +63,104 @@ const FlexibleLayout = ({
     sleep: [],
     reason: ''
   });
-  const [isUpdating, setIsUpdating] = useState(false);
-  const { toast } = useToast();
-  const [updateTimeout, setUpdateTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  const updateProgressAndRecommendations = useCallback(async () => {
+  const { toast } = useToast();
+
+  const analyzeConversation = async () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey || messages.length <= 1 || isUpdating) return;
+    if (!apiKey || messages.length < 2) {
+      toast({
+        title: "Cannot analyze conversation",
+        description: "Not enough conversation data to analyze.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
-      setIsUpdating(true);
+      setIsAnalyzing(true);
       const progressTracker = initializeProgressTracker(apiKey);
+
+      // Add timestamps if not present
+      const messagesWithTimestamp = messages.map((m, index) => ({
+        ...m,
+        timestamp: m.timestamp ? new Date(m.timestamp).toISOString() : 
+                  new Date(Date.now() - (messages.length - index) * 60000).toISOString()
+      }));
+
+      // Get comprehensive analysis including emotions and engagement
+      const progress = await progressTracker.trackProgressWithEmotions(messagesWithTimestamp);
+      
+      // Process and validate the progress data
+      const processedProgress = {
+        ...progress,
+        goals: (progress.goals || []).map(g => ({
+          ...g,
+          progress: Math.min(100, Math.max(0, g.progress || 0)),
+          status: g.status || 'not-started'
+        })),
+        improvements: {
+          strengths: progress.improvements?.strengths || [],
+          challenges: progress.improvements?.challenges || [],
+          recommendations: progress.improvements?.recommendations || []
+        },
+        emotionalJourney: {
+          emotions: progress.emotionalJourney?.emotions || [],
+          dominantEmotions: progress.emotionalJourney?.dominantEmotions || [],
+          engagementLevel: progress.emotionalJourney?.engagementLevel || [0, 0, 0, 0, 0]
+        }
+      };
+
+      // Update content recommendations based on emotional state
       const contentRecommender = initializeContentRecommender(apiKey);
+      const dominantEmotion = processedProgress.emotionalJourney.dominantEmotions[0]?.emotion || 'neutral';
       
-      const conversation = messages.map(m => `${m.isUser ? 'User' : 'Dr. Sky'}: ${m.text}`);
-      
-      // Get progress data
-      const progress = await progressTracker.trackProgress(conversation);
-      setProgressData(progress);
-      await progressTracker.saveProgress(progress);
-
-      // Get content recommendations based on emotional state
       const recommendations = await contentRecommender.getRecommendations(
-        progress.improvements.challenges[0] || 'neutral',
-        progress.sessionSummary
+        dominantEmotion,
+        processedProgress.sessionSummary
       );
+
+      // Save progress and recommendations to localStorage
+      localStorage.setItem('current-progress', JSON.stringify(processedProgress));
+      localStorage.setItem('content-recommendations', JSON.stringify(recommendations));
+
+      // Set state before navigation
+      setProgressData(processedProgress);
       setContentRecommendations(recommendations);
+
+      // Navigate to progress page
+      navigate('/progress');
+
+      toast({
+        title: "Analysis Complete",
+        description: "Viewing your session insights...",
+        variant: "default"
+      });
     } catch (error: any) {
-      console.error('Error updating progress:', error);
-      if (error.message?.includes('429')) {
-        toast({
-          title: "Rate Limit Reached",
-          description: "Please wait a moment before getting new recommendations.",
-          variant: "destructive"
-        });
-      }
+      console.error('Error analyzing conversation:', error);
+      toast({
+        title: "Analysis Error",
+        description: error.message?.includes('429') 
+          ? "Service is busy. Please try again in a moment."
+          : "Failed to analyze conversation. Please try again.",
+        variant: "destructive"
+      });
     } finally {
-      setIsUpdating(false);
+      setIsAnalyzing(false);
     }
-  }, [messages, isUpdating, toast]);
+  };
 
-  // Debounced update effect
-  useEffect(() => {
-    if (updateTimeout) {
-      clearTimeout(updateTimeout);
-    }
+  const handleEndSession = async () => {
+    setSessionEnded(true);
+    await analyzeConversation();
+  };
 
-    const timeout = setTimeout(() => {
-      updateProgressAndRecommendations();
-    }, 5000); // Wait 5 seconds after last message before updating
-
-    setUpdateTimeout(timeout);
-
-    return () => {
-      if (updateTimeout) {
-        clearTimeout(updateTimeout);
-      }
-    };
-  }, [messages, updateProgressAndRecommendations]);
+  const handleNewSession = () => {
+    setSessionEnded(false);
+    localStorage.removeItem('current-progress');
+    localStorage.removeItem('content-recommendations');
+    setMessages([]);
+  };
 
   // Handle responsive layout
   useEffect(() => {
@@ -139,15 +187,26 @@ const FlexibleLayout = ({
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowProgress(!showProgress)}
-            className="text-therapy-text-primary"
-            disabled={isUpdating}
-          >
-            {isUpdating ? 'Updating...' : (showProgress ? 'Hide Progress' : 'Show Progress')}
-          </Button>
+          {!sessionEnded ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleEndSession}
+              className="text-therapy-text-primary"
+              disabled={isAnalyzing || messages.length < 2}
+            >
+              {isAnalyzing ? 'Analyzing...' : 'End Session'}
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleNewSession}
+              className="text-therapy-text-primary"
+            >
+              New Session
+            </Button>
+          )}
           <Button
             variant="ghost"
             className="text-therapy-text-primary"
@@ -217,20 +276,9 @@ const FlexibleLayout = ({
             ${isMobile ? 'h-[55vh]' : 'min-h-0'}
           `}>
             {/* Chat Messages */}
-            {showProgress ? (
-              <div className="space-y-6">
-                <ProgressTracker
-                  sessionSummary={progressData.sessionSummary}
-                  goals={progressData.goals}
-                  improvements={progressData.improvements}
-                />
-                <ContentRecommendations recommendations={contentRecommendations} />
-              </div>
-            ) : (
-              <div className="flex-1 bg-therapy-surface rounded-xl border border-therapy-border-light/10 overflow-hidden">
-                <TherapyChat messages={messages} />
-              </div>
-            )}
+            <div className="flex-1 bg-therapy-surface rounded-xl border border-therapy-border-light/10 overflow-hidden">
+              <TherapyChat messages={messages} />
+            </div>
             {/* Voice Input */}
             <div className="bg-therapy-surface p-4 rounded-xl border border-therapy-border-light/10">
               <VoiceInput
