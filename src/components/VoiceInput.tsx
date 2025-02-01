@@ -2,6 +2,25 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { PhoneCall, PhoneOff } from "lucide-react";
 
+const MAX_UTTERANCE_LENGTH = 200; // Maximum length for each utterance chunk
+
+const splitTextIntoChunks = (text: string): string[] => {
+  const chunks: string[] = [];
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  
+  let currentChunk = '';
+  for (const sentence of sentences) {
+    if ((currentChunk + sentence).length > MAX_UTTERANCE_LENGTH) {
+      if (currentChunk) chunks.push(currentChunk.trim());
+      currentChunk = sentence;
+    } else {
+      currentChunk += sentence;
+    }
+  }
+  if (currentChunk) chunks.push(currentChunk.trim());
+  return chunks;
+};
+
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
   isProcessing: boolean;
@@ -17,6 +36,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
 }) => {
   const [isActive, setIsActive] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState('');
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const synthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
 
@@ -66,6 +86,16 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
     }
   };
 
+  // Add this function to handle speech recognition start
+  const startListeningWithDelay = () => {
+    // Add a delay before starting to listen to avoid picking up the AI's response
+    setTimeout(() => {
+      if (isActive && !isProcessing && !isSpeaking) {
+        startListening();
+      }
+    }, 1000); // 1 second delay
+  };
+
   // Set up recognition event handlers
   useEffect(() => {
     if (!recognitionRef.current) return;
@@ -73,16 +103,21 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
     const recognition = recognitionRef.current;
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0].transcript)
+        .join(' ');
       
-      // Update current transcript for display
-      setCurrentTranscript(transcript);
-      
-      // Only send final results to the AI
-      if (event.results[0].isFinal && transcript.trim()) {
-        onTranscript(transcript.trim());
-        setCurrentTranscript('');
-        onStateChange?.('thinking');
+      // Only process the transcript if we're not speaking
+      if (!isSpeaking) {
+        // Update current transcript for display
+        setCurrentTranscript(transcript);
+        
+        // Only send final results to the AI
+        if (event.results[0].isFinal && transcript.trim()) {
+          onTranscript(transcript.trim());
+          setCurrentTranscript('');
+          onStateChange?.('thinking');
+        }
       }
     };
 
@@ -100,54 +135,91 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
       }
       setCurrentTranscript('');
     };
-  }, [isActive, isProcessing, onTranscript, onStateChange]);
+  }, [isActive, isProcessing, onTranscript, onStateChange, isSpeaking]);
 
   // Handle AI response
   useEffect(() => {
-    if (!lastResponse || !isActive || !window.speechSynthesis) return;
+    if (!lastResponse || !isActive || isProcessing) return;
 
-    stopListening();
-    
-    const utterance = new SpeechSynthesisUtterance(lastResponse);
-    synthesisRef.current = utterance;
+    const textChunks = splitTextIntoChunks(lastResponse);
+    let currentChunkIndex = 0;
 
-    // Get voices and select a female English voice if available
-    const voices = window.speechSynthesis.getVoices();
-    const voice = voices.find(v => 
-      v.lang.includes('en') && v.name.includes('Female')
-    ) || voices.find(v => v.lang.includes('en')) || voices[0];
-
-    if (voice) {
-      utterance.voice = voice;
-    }
-
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-
-    utterance.onstart = () => {
-      onStateChange?.('speaking');
-    };
-
-    utterance.onend = () => {
-      if (isActive && !isProcessing) {
-        startListening();
+    const speakNextChunk = () => {
+      if (currentChunkIndex >= textChunks.length) {
+        setIsSpeaking(false);
+        startListeningWithDelay();
+        return;
       }
-      synthesisRef.current = null;
-    };
 
-    utterance.onerror = (event) => {
-      console.error('Synthesis error:', event);
-      if (isActive && !isProcessing) {
-        startListening();
+      const utterance = new SpeechSynthesisUtterance(textChunks[currentChunkIndex]);
+      
+      // Get available voices
+      const voices = window.speechSynthesis.getVoices();
+      const voice = voices.find(v => 
+        v.name.includes('Female') || 
+        v.name.includes('Samantha') || 
+        v.name.includes('Google UK English Female')
+      );
+      
+      if (voice) {
+        utterance.voice = voice;
       }
-      synthesisRef.current = null;
+
+      utterance.rate = 0.9; // Slightly slower for better clarity
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        onStateChange?.('speaking');
+      };
+
+      utterance.onend = () => {
+        currentChunkIndex++;
+        if (currentChunkIndex < textChunks.length) {
+          setTimeout(() => speakNextChunk(), 300); // Add small pause between chunks
+        } else {
+          setIsSpeaking(false);
+          startListeningWithDelay();
+        }
+        synthesisRef.current = null;
+      };
+
+      utterance.onerror = (event) => {
+        console.error('Synthesis error:', event);
+        currentChunkIndex++;
+        if (currentChunkIndex < textChunks.length) {
+          setTimeout(() => speakNextChunk(), 500);
+        } else {
+          setIsSpeaking(false);
+          startListeningWithDelay();
+        }
+        synthesisRef.current = null;
+      };
+
+      // Stop listening while speaking
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+
+      window.speechSynthesis.cancel();
+      
+      setTimeout(() => {
+        try {
+          window.speechSynthesis.speak(utterance);
+          synthesisRef.current = utterance;
+        } catch (error) {
+          console.error('Speech synthesis error:', error);
+          setIsSpeaking(false);
+        }
+      }, 100);
     };
 
-    window.speechSynthesis.speak(utterance);
+    speakNextChunk();
 
     return () => {
       window.speechSynthesis.cancel();
+      setIsSpeaking(false);
     };
   }, [lastResponse, isActive, isProcessing, onStateChange]);
 
@@ -155,19 +227,15 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
   const toggleConversation = async () => {
     if (isActive) {
       setIsActive(false);
+      setIsSpeaking(false);
       stopListening();
       if (window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
       onStateChange?.('idle');
     } else {
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        setIsActive(true);
-        startListening();
-      } catch (error) {
-        console.error('Microphone access denied:', error);
-      }
+      setIsActive(true);
+      startListening();
     }
   };
 
