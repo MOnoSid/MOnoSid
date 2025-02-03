@@ -1,47 +1,78 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [isScrolled, setIsScrolled] = useState(false);
+  const { scrollYProgress } = useScroll();
+  const opacity = useTransform(scrollYProgress, [0, 0.2], [1, 0]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      {/* Navigation */}
-      <nav className="container mx-auto px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <img src="https://i.imgur.com/rSM4LWK.png" alt="MonoSid Logo" className="h-12 w-12 mr-2" style={{ borderRadius: '50%' }}/>
-            <span className="text-2xl font-bold text-blue-600">MonoSid</span>
-          </div>
-          <div className="hidden md:flex items-center space-x-8">
-            <a href="#features" className="text-gray-600 hover:text-blue-600 transition-colors">Features</a>
-            <a href="#how-it-works" className="text-gray-600 hover:text-blue-600 transition-colors">How it Works</a>
-            <a href="#testimonials" className="text-gray-600 hover:text-blue-600 transition-colors">Testimonials</a>
-            <Button
-              onClick={() => navigate('/therapy')}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6"
-            >
-              Start Free Session
-            </Button>
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-blue-50">
+      {/* Navigation - Now with blur effect and transition */}
+      <nav className={`fixed w-full z-50 transition-all duration-300 ${
+        isScrolled ? 'bg-white/80 backdrop-blur-lg shadow-sm' : 'bg-transparent'
+      }`}>
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <motion.img 
+                whileHover={{ scale: 1.05 }}
+                src="https://i.imgur.com/rSM4LWK.png" 
+                alt="MonoSid Logo" 
+                className="h-12 w-12 mr-2" 
+                style={{ borderRadius: '50%' }}
+              />
+              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+                MonoSid
+              </span>
+            </div>
+            <div className="hidden md:flex items-center space-x-8">
+              <a href="#features" className="text-gray-600 hover:text-blue-600 transition-colors hover:scale-105 transform duration-200">Features</a>
+              <a href="#how-it-works" className="text-gray-600 hover:text-blue-600 transition-colors hover:scale-105 transform duration-200">How it Works</a>
+              <a href="#testimonials" className="text-gray-600 hover:text-blue-600 transition-colors hover:scale-105 transform duration-200">Testimonials</a>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button
+                  onClick={() => navigate('/therapy')}
+                  className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white px-6 shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  Start Free Session
+                </Button>
+              </motion.div>
+            </div>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section with Video Background */}
-      <section className="relative h-screen flex items-center">
-        <div className="absolute inset-0 overflow-hidden">
+      {/* Hero Section with Parallax Effect */}
+      <section className="relative min-h-screen flex items-center pt-20">
+        <motion.div 
+          style={{ opacity }}
+          className="absolute inset-0 overflow-hidden"
+        >
           <video
             autoPlay
             loop
             muted
             playsInline
-            className="w-full h-full object-cover opacity-20"
+            className="w-full h-full object-cover opacity-10"
           >
             <source src="https://cdn.coverr.co/videos/coverr-a-woman-talking-to-her-therapist-2856/1080p.mp4" type="video/mp4" />
           </video>
-        </div>
+        </motion.div>
         <div className="container mx-auto px-6 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -49,54 +80,101 @@ const Landing = () => {
             transition={{ duration: 0.8 }}
             className="text-center"
           >
-            <h1 className="text-5xl md:text-7xl font-bold text-gray-900 mb-6">
-              Your Path to <span className="text-blue-600">Mental Wellness</span>
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto">
+            <motion.h1 
+              className="text-5xl md:text-7xl font-bold mb-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+            >
+              Your Path to{' '}
+              <span className="bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+                Mental Wellness
+              </span>
+            </motion.h1>
+            <motion.p 
+              className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+            >
               Experience confidential, AI-powered therapy sessions with Dr. Sky. 
               Available 24/7, judgment-free, and personalized to your needs.
-            </p>
-            <div className="flex flex-col md:flex-row gap-4 justify-center">
-              <Button
-                onClick={() => navigate('/therapy')}
-                size="lg"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 text-lg"
+            </motion.p>
+            <motion.div 
+              className="flex flex-col md:flex-row gap-4 justify-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
+            >
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                Start Free Session
-              </Button>
-              <Button
-                onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-                size="lg"
-                variant="outline"
-                className="border-blue-600 text-blue-600 hover:bg-blue-50 px-8 py-6 text-lg"
+                <Button
+                  onClick={() => navigate('/therapy')}
+                  size="lg"
+                  className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white px-8 py-6 text-lg shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  Start Free Session
+                </Button>
+              </motion.div>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                Learn More
-              </Button>
-            </div>
-            <div className="mt-12 flex justify-center items-center space-x-8">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">100%</div>
-                <div className="text-gray-600">Private & Secure</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">24/7</div>
-                <div className="text-gray-600">Availability</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">AI</div>
-                <div className="text-gray-600">Powered</div>
-              </div>
-            </div>
+                <Button
+                  onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+                  size="lg"
+                  variant="outline"
+                  className="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 px-8 py-6 text-lg shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  Learn More
+                </Button>
+              </motion.div>
+            </motion.div>
+            <motion.div 
+              className="mt-12 flex justify-center items-center space-x-8"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.8, delay: 0.8 }}
+            >
+              {[
+                { value: "100%", label: "Private & Secure" },
+                { value: "24/7", label: "Availability" },
+                { value: "AI", label: "Powered" }
+              ].map((stat, index) => (
+                <motion.div
+                  key={index}
+                  className="text-center"
+                  whileHover={{ scale: 1.1 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                >
+                  <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+                    {stat.value}
+                  </div>
+                  <div className="text-gray-600">{stat.label}</div>
+                </motion.div>
+              ))}
+            </motion.div>
           </motion.div>
         </div>
       </section>
 
-      {/* Features Section with Images */}
-      <section id="features" className="py-20 bg-white">
-        <div className="container mx-auto px-6">
-          <h2 className="text-4xl font-bold text-center text-gray-900 mb-16">
-            Why Choose <span className="text-blue-600">Dr. Sky</span>?
-          </h2>
+      {/* Features Section with Glass Effect Cards */}
+      <section id="features" className="py-20 bg-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-white/50"></div>
+        <div className="container mx-auto px-6 relative">
+          <motion.h2 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="text-4xl font-bold text-center mb-16"
+          >
+            Why Choose{' '}
+            <span className="bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+              Dr. Sky
+            </span>
+          </motion.h2>
           <div className="grid md:grid-cols-3 gap-12">
             {[
               {
@@ -122,16 +200,21 @@ const Landing = () => {
                 key={index}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: feature.delay }}
-                className="bg-blue-50 rounded-xl p-8 hover:shadow-xl transition-shadow"
+                whileHover={{ y: -5, scale: 1.02 }}
+                transition={{ delay: feature.delay, duration: 0.5 }}
+                className="bg-white/80 backdrop-blur-lg rounded-2xl p-8 shadow-lg hover:shadow-xl border border-blue-100 transition-all duration-300"
               >
-                <img 
-                  src={feature.image} 
-                  alt={feature.title} 
-                  className="w-16 h-16 mx-auto mb-6 stroke-blue-600" 
-                  style={{ filter: 'invert(37%) sepia(74%) saturate(1045%) hue-rotate(201deg) brightness(101%) contrast(101%)' }}
-                />
-                <h3 className="text-2xl font-semibold mb-4 text-center">{feature.title}</h3>
+                <div className="bg-blue-50 rounded-xl p-4 w-16 h-16 mx-auto mb-6">
+                  <img 
+                    src={feature.image} 
+                    alt={feature.title} 
+                    className="w-full h-full stroke-blue-600" 
+                    style={{ filter: 'invert(37%) sepia(74%) saturate(1045%) hue-rotate(201deg) brightness(101%) contrast(101%)' }}
+                  />
+                </div>
+                <h3 className="text-2xl font-semibold mb-4 text-center bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+                  {feature.title}
+                </h3>
                 <p className="text-gray-600 text-center">{feature.description}</p>
               </motion.div>
             ))}
@@ -140,23 +223,40 @@ const Landing = () => {
       </section>
 
       {/* How it Works Section with Interactive Elements */}
-      <section id="how-it-works" className="py-20 bg-gradient-to-b from-white to-blue-50">
+      <section id="how-it-works" className="py-20 bg-gradient-to-b from-white to-blue-50/30 relative">
         <div className="container mx-auto px-6">
-          <h2 className="text-4xl font-bold text-center text-gray-900 mb-16">
-            Your Journey to <span className="text-blue-600">Better Mental Health</span>
-          </h2>
+          <motion.h2 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="text-4xl font-bold text-center mb-16"
+          >
+            Your Journey to{' '}
+            <span className="bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+              Better Mental Health
+            </span>
+          </motion.h2>
           <div className="grid md:grid-cols-2 gap-16 items-center">
-            <div className="relative">
+            <motion.div 
+              className="relative"
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8 }}
+            >
               <img 
                 src="https://img.freepik.com/free-vector/online-therapy-concept_23-2148525717.jpg" 
                 alt="Therapy Session" 
-                className="rounded-lg shadow-2xl"
+                className="rounded-2xl shadow-2xl"
               />
-              <div className="absolute -bottom-8 -right-8 bg-blue-600 text-white p-6 rounded-lg">
+              <motion.div 
+                className="absolute -bottom-8 -right-8 bg-gradient-to-r from-blue-600 to-blue-500 text-white p-6 rounded-xl shadow-lg"
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: "spring", stiffness: 300 }}
+              >
                 <p className="text-lg font-semibold">Start in 30 Seconds</p>
                 <p>No registration required</p>
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
             <div className="space-y-8">
               {[
                 {
@@ -182,16 +282,19 @@ const Landing = () => {
               ].map((step, index) => (
                 <motion.div
                   key={index}
-                  initial={{ opacity: 0, x: -20 }}
+                  initial={{ opacity: 0, x: 20 }}
                   whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.2 }}
+                  whileHover={{ x: 10 }}
+                  transition={{ delay: index * 0.2, duration: 0.5 }}
                   className="flex items-start space-x-4"
                 >
-                  <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
                     {step.step}
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
+                    <h3 className="text-xl font-semibold mb-2 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+                      {step.title}
+                    </h3>
                     <p className="text-gray-600">{step.description}</p>
                   </div>
                 </motion.div>
@@ -201,12 +304,18 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section id="testimonials" className="py-20 bg-white">
-        <div className="container mx-auto px-6">
-          <h2 className="text-4xl font-bold text-center text-gray-900 mb-16">
+      {/* Testimonials Section with Glass Cards */}
+      <section id="testimonials" className="py-20 bg-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-blue-50/30 to-white/30"></div>
+        <div className="container mx-auto px-6 relative">
+          <motion.h2 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="text-4xl font-bold text-center mb-16"
+          >
             What Our Users Say
-          </h2>
+          </motion.h2>
           <div className="grid md:grid-cols-3 gap-8">
             {[
               {
@@ -229,17 +338,20 @@ const Landing = () => {
                 key={index}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.2 }}
-                className="bg-gray-50 p-8 rounded-xl"
+                whileHover={{ y: -5, scale: 1.02 }}
+                transition={{ delay: index * 0.2, duration: 0.5 }}
+                className="bg-white/80 backdrop-blur-lg p-8 rounded-2xl shadow-lg hover:shadow-xl border border-blue-100 transition-all duration-300"
               >
                 <div className="flex items-center mb-6">
                   <img
                     src={testimonial.image}
                     alt={testimonial.author}
-                    className="w-12 h-12 rounded-full mr-4"
+                    className="w-12 h-12 rounded-full mr-4 border-2 border-blue-100"
                   />
                   <div>
-                    <div className="font-semibold">{testimonial.author}</div>
+                    <div className="font-semibold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+                      {testimonial.author}
+                    </div>
                     <div className="text-blue-600">Verified User</div>
                   </div>
                 </div>

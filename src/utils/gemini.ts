@@ -6,119 +6,217 @@ export const initializeGemini = (apiKey: string) => {
   genAI = new GoogleGenerativeAI(apiKey);
 };
 
+// Export the emotion analysis helper
+export const analyzeEmotion = (text: string): { emotion: string; intensity: number } => {
+  const emotionKeywords = {
+    joy: ['happy', 'joy', 'excited', 'great', 'wonderful', 'delighted', 'pleased'],
+    sadness: ['sad', 'down', 'unhappy', 'depressed', 'miserable', 'hurt'],
+    anger: ['angry', 'frustrated', 'mad', 'annoyed', 'irritated'],
+    fear: ['afraid', 'scared', 'anxious', 'worried', 'nervous'],
+    surprise: ['surprised', 'shocked', 'amazed', 'astonished'],
+    love: ['love', 'caring', 'affection', 'warmth', 'kindness'],
+    gratitude: ['thankful', 'grateful', 'appreciate', 'blessed'],
+    hope: ['hope', 'optimistic', 'looking forward', 'better'],
+    neutral: ['okay', 'fine', 'alright', 'neutral']
+  };
+
+  let detectedEmotion = 'neutral';
+  let maxCount = 0;
+  let intensity = 50;
+
+  // Count emotion keywords
+  for (const [emotion, keywords] of Object.entries(emotionKeywords)) {
+    const count = keywords.reduce((acc, keyword) => {
+      const regex = new RegExp(keyword, 'gi');
+      const matches = text.match(regex);
+      return acc + (matches ? matches.length : 0);
+    }, 0);
+
+    if (count > maxCount) {
+      maxCount = count;
+      detectedEmotion = emotion;
+    }
+  }
+
+  // Calculate intensity based on:
+  // 1. Number of emotion keywords
+  // 2. Exclamation marks
+  // 3. Capitalization
+  // 4. Message length
+  const exclamationCount = (text.match(/!/g) || []).length;
+  const capsCount = (text.match(/[A-Z]{2,}/g) || []).length;
+  const messageLength = text.length;
+
+  intensity = Math.min(100, Math.max(0,
+    50 + // base intensity
+    (maxCount * 10) + // emotion keyword frequency
+    (exclamationCount * 5) + // excitement level
+    (capsCount * 5) + // emphasis level
+    (messageLength > 100 ? 10 : 0) // length bonus
+  ));
+
+  return { emotion: detectedEmotion, intensity };
+};
+
 export const getTherapyResponse = async (
   text: string,
   imageData?: string
-): Promise<string> => {
+): Promise<{ response: string; emotion: { emotion: string; intensity: number } }> => {
   try {
     if (!genAI) {
-      return "I apologize, but I need to be properly configured with an API key to provide therapy services. Please ensure the API key is set up correctly.";
+      throw new Error('API key not configured');
     }
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // Enhanced structured prompt for better results
-    const basePrompt = `Role: You are Dr. Sky, a highly skilled therapist known for your exceptional emotional intelligence and nurturing approach.
+    // Enhanced prompt with emotion awareness
+    const prompt = `You are Dr. Sky, a compassionate and experienced therapist. 
+    Analyze the emotional state in this message and respond with genuine empathy: "${text}"
+    
+    Your response should:
+    1. Acknowledge and validate the detected emotions
+    2. Show deep understanding and empathy
+    3. Provide gentle support and guidance
+    4. Use a warm, nurturing tone
+    5. Keep responses concise but meaningful
+    6. Avoid clinical terminology
+    7. Never mention being AI
+    8. Maintain a natural, conversational style`;
 
-Background:
-You have 15+ years of experience in emotional counseling, specializing in empathetic response and crisis support. Your approach combines warmth with professional insight, making people feel truly heard and understood.
+    const parts: any[] = [prompt];
 
-Current Interaction Style:
-- Voice: Warm, maternal, and soothing
-- Tone: Gentle yet confident
-- Pace: Measured and thoughtful
-- Language: Natural and accessible
-
-Key Principles:
-1. VALIDATE emotions first
-2. REFLECT understanding
-3. SUPPORT with gentle guidance
-4. ENCOURAGE self-discovery
-
-Response Structure:
-1. Opening: Brief emotional acknowledgment
-2. Middle: One key insight or gentle observation
-3. Closing: Subtle encouragement or thoughtful question
-
-Essential Guidelines:
-- Keep responses concise (2-3 sentences)
-- Use natural conversation flow
-- Mirror emotional tone appropriately
-- Incorporate subtle therapeutic techniques
-- Focus on immediate emotional support
-- Maintain consistent warmth
-
-Emotional Calibration:
-- For distress: Increase warmth and validation
-- For anxiety: Add calming, grounding elements
-- For sadness: Enhance compassionate support
-- For anger: Provide respectful validation
-- For hope: Amplify positive reinforcement
-
-Phrases to Weave In:
-- "I hear the [emotion] in your words..."
-- "It makes sense that you feel..."
-- "Let's explore this together..."
-- "What I'm understanding is..."
-- "I'm here with you..."
-
-Strict Avoidance:
-- Clinical terminology
-- AI/machine references
-- Words like: image, photo, picture, video
-- Lengthy explanations
-- Direct advice-giving
-
-Current Focus: ${text}`;
-
-    const parts: any[] = [basePrompt];
-
-    if (imageData && imageData.includes('base64')) {
+    if (imageData?.includes('base64')) {
       const base64Image = imageData.split(',')[1];
       if (base64Image) {
-        // Enhanced visual context prompt
-        const visualContextPrompt = `
-Additional Context:
-- Focus on emotional expressions and body language
-- Notice environmental factors that may impact mood
-- Consider overall emotional atmosphere
-- Maintain same warm, supportive tone
-- Integrate observations naturally into response
-- Keep focus on emotional experience`;
-
-        parts[0] = basePrompt + visualContextPrompt;
         parts.push({
-          inlineData: {
-            mimeType: "image/jpeg",
-            data: base64Image
-          }
+          inlineData: { mimeType: "image/jpeg", data: base64Image }
         });
       }
     }
 
     const result = await model.generateContent(parts);
-    let response = result.response.text();
+    const response = result.response.text();
     
-    // Enhanced response processing
-    response = response
-      // Remove any AI/technical references
-      .replace(/\b(AI|artificial intelligence|machine|model|assistant|bot)\b/gi, 'I')
-      .replace(/\b(image|photo|picture|video|visual|screenshot)\b/gi, 'what you shared')
-      // Enhance emotional language
-      .replace(/\b(understand|see|notice)\b/gi, 'feel')
-      .replace(/\b(think|believe)\b/gi, 'sense')
-      // Clean up formatting
-      .replace(/\s+/g, ' ')
-      .trim();
+    // Analyze emotions in both the user's message and AI's response
+    const userEmotion = analyzeEmotion(text);
+    const responseEmotion = analyzeEmotion(response);
 
-    // Ensure response starts with an emotional acknowledgment
-    if (!response.match(/^(I [a-z]+ |Let me |What I'm |I'm )/i)) {
-      response = "I hear you. " + response;
-    }
+    // Process the response to remove AI references
+    const processedResponse = response
+      .replace(/\b(AI|artificial intelligence|machine|model|assistant)\b/gi, 'I')
+      .replace(/\b(image|photo|picture|video)\b/gi, 'what you shared');
 
-    return response;
+    return {
+      response: processedResponse,
+      emotion: responseEmotion
+    };
   } catch (error) {
     console.error("Error getting therapy response:", error);
-    return "I sense this is a challenging moment. I'm here to listen and support you. Would you feel comfortable sharing your thoughts with me again?";
+    return {
+      response: "I sense this is a difficult moment. Would you feel comfortable sharing your thoughts with me again?",
+      emotion: { emotion: 'empathy', intensity: 60 }
+    };
+  }
+};
+
+export const getCopingStrategies = async (
+  currentEmotion: string,
+  intensity: number,
+  recentMessages: { text: string; isUser: boolean }[]
+): Promise<{
+  title: string;
+  description: string;
+  steps: string[];
+  category: string;
+}[]> => {
+  try {
+    if (!genAI) {
+      throw new Error('API key not configured');
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    // Create conversation context
+    const conversationContext = recentMessages
+      .map(msg => `${msg.isUser ? "User" : "Therapist"}: ${msg.text}`)
+      .join("\n");
+
+    const prompt = `You are an emotional support AI. Based on this conversation, generate 2-3 personalized coping strategies.
+
+Current State:
+- Emotion: ${currentEmotion}
+- Intensity: ${intensity}/100
+
+Recent Conversation:
+${conversationContext}
+
+IMPORTANT: Respond ONLY with a valid JSON array of strategies. No markdown, no explanation, just the JSON array.
+Each strategy should have:
+- title: string (strategy name)
+- description: string (brief description)
+- steps: string[] (3-5 clear steps)
+- category: string (one of: Relaxation, Movement, Expression, Positivity)
+
+Example format:
+[
+  {
+    "title": "Strategy Name",
+    "description": "Brief description",
+    "steps": ["Step 1", "Step 2", "Step 3"],
+    "category": "Category"
+  }
+]
+
+Remember:
+1. Return ONLY the JSON array
+2. Make strategies specific to the emotional context
+3. Keep steps practical and actionable
+4. Use supportive language
+5. Ensure valid JSON format`;
+
+    const result = await model.generateContent(prompt);
+    const response = result.response.text();
+    
+    // Clean the response to handle potential markdown or extra text
+    const cleanedResponse = response
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
+
+    try {
+      const strategies = JSON.parse(cleanedResponse);
+      if (!Array.isArray(strategies)) {
+        throw new Error('Response is not an array');
+      }
+
+      // Validate strategy format
+      const validStrategies = strategies.filter(strategy => 
+        strategy.title &&
+        strategy.description &&
+        Array.isArray(strategy.steps) &&
+        strategy.category &&
+        ['Relaxation', 'Movement', 'Expression', 'Positivity'].includes(strategy.category)
+      );
+
+      return validStrategies;
+    } catch (error) {
+      console.error("Error parsing strategies:", error);
+      // Return fallback strategies for the current emotion
+      return [{
+        title: "Mindful Breathing",
+        description: "A simple technique to center yourself and find calm",
+        steps: [
+          "Find a comfortable position",
+          "Breathe in slowly for 4 counts",
+          "Hold for 4 counts",
+          "Exhale for 4 counts",
+          "Repeat 5 times"
+        ],
+        category: "Relaxation"
+      }];
+    }
+  } catch (error) {
+    console.error("Error getting coping strategies:", error);
+    return [];
   }
 };

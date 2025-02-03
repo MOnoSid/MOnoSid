@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
+import './TherapyChat.css'; // Import CSS for responsive styles
 
 interface Message {
   text: string;
@@ -72,7 +73,7 @@ const TherapyChat = ({ messages }: TherapyChatProps) => {
                     message.isUser ? "-right-2" : "-left-2"
                   } w-4 h-4 ${
                     message.isUser
-                      ? "bg-gradient-to-r from-therapy-gradient-start to-therapy-gradient-end"
+                      ? "bg-gradient-to-r from-therapy-gradient-start to-therapy-gradient-start"
                       : "bg-therapy-surface"
                   } transform ${message.isUser ? "rotate-45" : "-rotate-45"}`}
                 ></div>

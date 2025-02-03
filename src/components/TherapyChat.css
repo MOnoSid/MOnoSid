@@ -1,0 +1,29 @@
+.therapy-chat-container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.message {
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  word-wrap: break-word;
+}
+
+.user-message {
+  background-color: #e0f7fa;
+  text-align: right;
+}
+
+.dr-message {
+  background-color: #fff3e0;
+  text-align: left;
+}
+
+@media (max-width: 768px) {
+  .therapy-chat-container {
+    padding: 10px;
+  }
+}

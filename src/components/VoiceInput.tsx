@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { PhoneCall, PhoneOff } from "lucide-react";
+import './VoiceInput.css'; // Import CSS for responsive styles
 
 const MAX_UTTERANCE_LENGTH = 200; // Maximum length for each utterance chunk
 
@@ -240,7 +241,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4">
+    <div className="flex flex-col items-center justify-center gap-4 voice-input-container">
       {isActive && !isProcessing && currentTranscript && (
         <div className="text-lg text-gray-700 bg-gray-100 rounded-lg p-4 min-h-[50px] w-full max-w-2xl text-center">
           {currentTranscript}
