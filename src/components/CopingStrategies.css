@@ -1,121 +1,167 @@
-.coping-strategies {
-  padding: 1.5rem;
-  background: linear-gradient(to right, #f8f9fa, #ffffff);
-  border-radius: 12px;
-  margin-top: 1.5rem;
+/* Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.strategies-title {
-  font-size: 1.25rem;
-  color: #2d3748;
-  margin-bottom: 1rem;
-  text-align: center;
-  font-weight: 600;
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-.strategies-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Loading state styles */
+.loading-indicator {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.loading-progress {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--primary-rgb), 0.1) 25%,
+    rgba(var(--primary-rgb), 0.2) 50%,
+    rgba(var(--primary-rgb), 0.1) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Strategy card animations */
 .strategy-card {
-  background: white;
-  border-radius: 10px;
-  padding: 1.25rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  animation: scaleIn 0.3s ease-out;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .strategy-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
 }
 
-.strategy-title {
-  font-size: 1.1rem;
-  color: #1a202c;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
+/* Progress indicators */
+.progress-bar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9999px;
 }
 
-.strategy-description {
-  color: #4a5568;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
+.progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: shimmer 2s infinite;
 }
 
-.strategy-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
+/* Step animations */
 .strategy-step {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.5rem;
-  background: #f7fafc;
-  border-radius: 6px;
-  transition: background-color 0.2s ease;
+  animation: slideIn 0.2s ease-out;
+  animation-fill-mode: both;
 }
 
-.strategy-step:hover {
-  background: #edf2f7;
+.strategy-step:nth-child(1) { animation-delay: 0.1s; }
+.strategy-step:nth-child(2) { animation-delay: 0.15s; }
+.strategy-step:nth-child(3) { animation-delay: 0.2s; }
+.strategy-step:nth-child(4) { animation-delay: 0.25s; }
+.strategy-step:nth-child(5) { animation-delay: 0.3s; }
+
+/* Interactive elements */
+.strategy-action {
+  transition: all 0.2s ease;
 }
 
-.step-number {
-  background: #4f46e5;
-  color: white;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  font-weight: 600;
-  flex-shrink: 0;
+.strategy-action:hover {
+  transform: translateY(-1px);
 }
 
-.step-text {
-  color: #2d3748;
-  font-size: 0.9rem;
-  line-height: 1.4;
+.strategy-action:active {
+  transform: translateY(0);
 }
 
-.strategy-category {
-  font-size: 0.8rem;
-  color: #718096;
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid #edf2f7;
+/* Category badge animations */
+.category-badge {
+  animation: fadeIn 0.3s ease-out;
 }
 
+/* Icon animations */
+.icon-container {
+  transition: all 0.3s ease;
+}
+
+.icon-container:hover {
+  transform: scale(1.1);
+}
+
+/* Responsive adjustments */
 @media (max-width: 768px) {
-  .coping-strategies {
-    padding: 1rem;
-  }
-
-  .strategies-container {
-    grid-template-columns: 1fr;
-  }
-
   .strategy-card {
-    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .strategy-step {
+    padding: 0.75rem;
   }
 }
 
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+/* Dark mode enhancements */
+@media (prefers-color-scheme: dark) {
+  .strategy-card {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  }
 
-.strategy-card {
-  animation: fadeIn 0.3s ease-out forwards;
+  .strategy-card:hover {
+    box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.4);
+  }
 }

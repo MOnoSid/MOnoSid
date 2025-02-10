@@ -3,68 +3,99 @@ import { useNavigate } from 'react-router-dom';
 import TherapyChat from './TherapyChat';
 import VoiceInput from './VoiceInput';
 import VideoFeed from './VideoFeed';
-import Resizer from './Resizer';
 import ProgressTracker from './ProgressTracker';
 import ContentRecommendations from './ContentRecommendations';
 import { Button } from './ui/button';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, Brain, Activity, Settings, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { initializeProgressTracker } from '@/utils/progressTracking';
 import { initializeContentRecommender } from '@/utils/contentRecommender';
 import { useToast } from '@/components/ui/use-toast';
 
+interface Message {
+  text: string;
+  isUser: boolean;
+  timestamp?: string;
+}
+
+interface ProgressData {
+  goals?: Array<{
+    progress?: number;
+    status?: string;
+  }>;
+  improvements?: {
+    strengths: string[];
+    challenges: string[];
+    recommendations: string[];
+  };
+  emotionalJourney?: {
+    emotions: Array<{ emotion: string; timestamp: string }>;
+    dominantEmotions: Array<{ emotion: string; frequency: number }>;
+    engagementLevel: number[];
+  };
+  sessionSummary?: string;
+}
+
 interface FlexibleLayoutProps {
-  messages: Array<{ isUser: boolean; text: string; timestamp?: number }>;
+  messages: Message[];
+  setMessages: (messages: Message[]) => void;
   onSendMessage: (message: string) => void;
   isProcessing: boolean;
   lastResponse: string;
-  onFrame?: (frame: ImageData) => void;
+  onFrame?: (frame: string) => void;
   conversationState?: any;
   onStateChange?: (state: any) => void;
 }
 
-const FlexibleLayout = ({ 
-  messages, 
-  onSendMessage, 
-  isProcessing, 
-  lastResponse, 
-  onFrame, 
-  conversationState, 
-  onStateChange 
-}: FlexibleLayoutProps) => {
+const FlexibleLayout: React.FC<FlexibleLayoutProps> = ({
+  messages,
+  setMessages,
+  onSendMessage,
+  isProcessing,
+  lastResponse,
+  onFrame,
+  conversationState,
+  onStateChange
+}) => {
   const navigate = useNavigate();
   const [videoSize, setVideoSize] = useState(500);
   const [isMobile, setIsMobile] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [sessionEnded, setSessionEnded] = useState(false);
-  const [progressData, setProgressData] = useState({
-    sessionSummary: '',
-    goals: [],
-    improvements: {
-      strengths: [],
-      challenges: [],
-      recommendations: []
-    },
-    emotionalJourney: {
-      emotions: [],
-      dominantEmotions: [],
-      engagementLevel: []
-    }
-  });
-
-  const [contentRecommendations, setContentRecommendations] = useState({
-    meditation: [],
-    relaxation: [],
-    educational: [],
-    motivation: [],
-    breathing: [],
-    mindfulness: [],
-    exercise: [],
-    sleep: [],
-    reason: ''
+  const [showSettings, setShowSettings] = useState(false);
+  const [sessionTime, setSessionTime] = useState(0);
+  const [progressData, setProgressData] = useState<ProgressData | null>(null);
+  const [contentRecommendations, setContentRecommendations] = useState<any[]>([]);
+  const [emotionalState, setEmotionalState] = useState({
+    currentEmotion: 'neutral',
+    intensity: 0
   });
 
   const { toast } = useToast();
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSessionTime(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleEndSession = async () => {
+    setSessionEnded(true);
+    toast({
+      title: "Session Ending",
+      description: "Analyzing your session data...",
+      duration: 3000,
+    });
+    await analyzeConversation();
+  };
 
   const analyzeConversation = async () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -92,10 +123,8 @@ const FlexibleLayout = ({
       const progress = await progressTracker.trackProgressWithEmotions(messagesWithTimestamp);
       
       // Process and validate the progress data
-      const processedProgress = {
-        ...progress,
+      const processedProgress: ProgressData = {
         goals: (progress.goals || []).map(g => ({
-          ...g,
           progress: Math.min(100, Math.max(0, g.progress || 0)),
           status: g.status || 'not-started'
         })),
@@ -108,21 +137,32 @@ const FlexibleLayout = ({
           emotions: progress.emotionalJourney?.emotions || [],
           dominantEmotions: progress.emotionalJourney?.dominantEmotions || [],
           engagementLevel: progress.emotionalJourney?.engagementLevel || [0, 0, 0, 0, 0]
-        }
+        },
+        sessionSummary: progress.sessionSummary || ''
       };
 
       // Update content recommendations based on emotional state
       const contentRecommender = initializeContentRecommender(apiKey);
       const dominantEmotion = processedProgress.emotionalJourney.dominantEmotions[0]?.emotion || 'neutral';
       
-      const recommendations = await contentRecommender.getRecommendations(
-        dominantEmotion,
-        processedProgress.sessionSummary
-      );
+      let recommendations = [];
+      try {
+        recommendations = await contentRecommender.getRecommendations(
+          dominantEmotion,
+          processedProgress.sessionSummary
+        );
+      } catch (error) {
+        console.error('Error getting content recommendations:', error);
+        recommendations = []; // Fallback to empty recommendations
+      }
 
       // Save progress and recommendations to localStorage
-      localStorage.setItem('current-progress', JSON.stringify(processedProgress));
-      localStorage.setItem('content-recommendations', JSON.stringify(recommendations));
+      try {
+        localStorage.setItem('current-progress', JSON.stringify(processedProgress));
+        localStorage.setItem('content-recommendations', JSON.stringify(recommendations));
+      } catch (error) {
+        console.error('Error saving to localStorage:', error);
+      }
 
       // Set state before navigation
       setProgressData(processedProgress);
@@ -150,23 +190,21 @@ const FlexibleLayout = ({
     }
   };
 
-  const handleEndSession = async () => {
-    setSessionEnded(true);
-    await analyzeConversation();
-  };
-
   const handleNewSession = () => {
     setSessionEnded(false);
-    localStorage.removeItem('current-progress');
-    localStorage.removeItem('content-recommendations');
     setMessages([]);
+    setSessionTime(0);
+    setEmotionalState({ currentEmotion: 'neutral', intensity: 0 });
+    toast({
+      title: "New Session Started",
+      description: "Ready to begin your therapy session",
+      duration: 3000,
+    });
   };
 
-  // Handle responsive layout
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 1024);
-      // Adjust video size based on screen width for desktop
       if (window.innerWidth >= 1024) {
         setVideoSize(Math.min(500, window.innerWidth * 0.4));
       }
@@ -178,80 +216,94 @@ const FlexibleLayout = ({
   }, []);
 
   return (
-    <div className="flex flex-col h-screen bg-therapy-background">
+    <div className="flex flex-col h-screen bg-gradient-to-b from-blue-50 via-white to-blue-50">
       {/* Header */}
-      <div className="flex justify-between items-center px-4 py-3 bg-therapy-surface/80 backdrop-blur-sm border-b border-therapy-border-light/10 sticky top-0 z-50">
+      <motion.div 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="sticky top-0 z-50 flex justify-between items-center px-6 py-4 bg-white/80 backdrop-blur-sm border-b shadow-sm"
+      >
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold text-therapy-text-primary">
-            MonoSid
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          {!sessionEnded ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleEndSession}
-              className="text-therapy-text-primary"
-              disabled={isAnalyzing || messages.length < 2}
-            >
-              {isAnalyzing ? 'Analyzing...' : 'End Session'}
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleNewSession}
-              className="text-therapy-text-primary"
-            >
-              New Session
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            className="text-therapy-text-primary"
-            onClick={() => navigate('/feedback')}
-          >
-            <MessageSquare className="w-5 h-5 mr-2" />
-            Feedback
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 p-4 overflow-hidden">
-        <div className={`h-full flex ${isMobile ? 'flex-col' : 'gap-4'}`}>
-          {/* Left Section: Video & Profile */}
-          <div 
-            style={{ width: isMobile ? '100%' : videoSize }}
-            className={`
-              ${isMobile ? 'h-[45vh] mb-4' : 'min-h-0'}
-              flex flex-col gap-4
-            `}
-          >
-            {/* Dr.Sky Profile */}
-            <div className="bg-therapy-surface p-4 rounded-xl border border-therapy-border-light/10">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-therapy-gradient-start to-therapy-gradient-end p-[2px]">
-                  <div className="w-full h-full rounded-lg bg-therapy-card flex items-center justify-center">
-                    <span className="text-lg font-bold bg-gradient-to-r from-therapy-gradient-start to-therapy-gradient-end text-transparent bg-clip-text">
-                      Dr
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-therapy-text-primary">Dr. Sky</h2>
-                  <p className="text-sm text-therapy-text-muted">AI Therapeutic Assistant</p>
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                  <span className="text-sm text-therapy-text-muted">Online</span>
-                </div>
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-lg font-bold text-white">Dr</span>
+            </div>
+            <div className="ml-3">
+              <h1 className="text-xl font-semibold text-gray-800">MonoSid</h1>
+              <div className="flex items-center text-sm text-gray-500">
+                <span className="w-2 h-2 bg-green-400 mr-2 rounded-full animate-pulse"></span>
+                Session Active
               </div>
             </div>
+          </div>
+        </div>
 
+        <div className="flex items-center gap-4">
+          <motion.div
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            className="hidden md:flex items-center bg-primary/5 px-4 py-2 rounded-lg"
+          >
+            <Activity className="w-4 h-4 text-primary mr-2" />
+            <span className="font-mono text-primary">{formatTime(sessionTime)}</span>
+          </motion.div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowProgress(!showProgress)}
+              className="hidden md:flex text-gray-600 hover:text-primary"
+            >
+              <Brain className="w-4 h-4 mr-2" />
+              Progress
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSettings(!showSettings)}
+              className="hidden md:flex text-gray-600 hover:text-primary"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+
+            {!sessionEnded ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleEndSession}
+                disabled={isAnalyzing || messages.length < 2}
+                className="bg-red-500 hover:bg-red-600 text-white whitespace-nowrap"
+              >
+                End Session
+              </Button>
+            ) : (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleNewSession}
+                className="bg-primary hover:bg-primary/90 text-white whitespace-nowrap"
+              >
+                New Session
+              </Button>
+            )}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-6 overflow-hidden">
+        <div className={`h-full flex ${isMobile ? 'flex-col' : 'gap-6'}`}>
+          {/* Left Section: Video & Profile */}
+          <motion.div 
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            style={{ width: isMobile ? '100%' : videoSize }}
+            className={`${isMobile ? 'h-[45vh] mb-4' : 'min-h-0'} flex flex-col gap-4`}
+          >
             {/* Video Feed */}
-            <div className="flex-1 bg-therapy-surface rounded-xl border border-therapy-border-light/10 overflow-hidden">
+            <div className="flex-1 bg-white border border-blue-100 shadow-lg overflow-hidden">
               <VideoFeed 
                 onFrame={onFrame}
                 botResponse={lastResponse}
@@ -259,28 +311,42 @@ const FlexibleLayout = ({
                 avatarState={conversationState}
               />
             </div>
-          </div>
 
-          {/* Resizer for Desktop */}
-          {!isMobile && (
-            <Resizer
-              onResize={setVideoSize}
-              minWidth={400}
-              maxWidth={800}
-            />
-          )}
+            {/* Emotional State Indicator */}
+            <motion.div 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="bg-white p-4 border border-blue-100 shadow-lg"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700">Emotional State</h3>
+                  <p className="text-lg text-blue-600 capitalize">{emotionalState.currentEmotion}</p>
+                </div>
+                <div className="w-20 h-20">
+                  {/* Add an emotional state visualization here */}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
 
           {/* Right Section: Chat & Input */}
-          <div className={`
-            flex-1 flex flex-col gap-4
-            ${isMobile ? 'h-[55vh]' : 'min-h-0'}
-          `}>
-            {/* Chat Messages */}
-            <div className="flex-1 bg-therapy-surface rounded-xl border border-therapy-border-light/10 overflow-hidden">
-              <TherapyChat messages={messages} />
+          <motion.div 
+            initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            className={`flex-1 flex flex-col gap-4 ${isMobile ? 'h-[55vh]' : 'min-h-0'}`}
+          >
+            {/* Chat Interface */}
+            <div className="flex-1 bg-white border border-blue-100 shadow-lg overflow-hidden">
+              <TherapyChat 
+                messages={messages}
+                onSendMessage={onSendMessage}
+                isTyping={isProcessing}
+              />
             </div>
+
             {/* Voice Input */}
-            <div className="bg-therapy-surface p-4 rounded-xl border border-therapy-border-light/10">
+            <div className="bg-white p-4 border border-blue-100 shadow-lg">
               <VoiceInput
                 onTranscript={onSendMessage}
                 isProcessing={isProcessing}
@@ -288,9 +354,57 @@ const FlexibleLayout = ({
                 onStateChange={onStateChange}
               />
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
+
+      {/* Settings Panel */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0, x: '100%' }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: '100%' }}
+            className="fixed top-0 right-0 w-80 h-full bg-white shadow-lg border-l border-blue-100 p-6"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-semibold">Settings</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSettings(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            {/* Add settings options here */}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Progress Panel */}
+      <AnimatePresence>
+        {showProgress && (
+          <motion.div
+            initial={{ opacity: 0, y: '100%' }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: '100%' }}
+            className="fixed bottom-0 left-0 right-0 h-2/3 bg-white shadow-lg border-t border-blue-100 p-6"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-semibold">Session Progress</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowProgress(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <ProgressTracker />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

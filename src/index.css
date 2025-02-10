@@ -4,23 +4,63 @@
 
 @layer base {
   :root {
-    --therapy-background: 240 5.9% 10%;
-    --therapy-text-primary: 240 4.8% 95.9%;
-    --therapy-gradient-start: 240 3.7% 15.9%;
-    --therapy-gradient-end: 217.2 91.2% 59.8%;
-    --therapy-surface: 240 5.9% 10%;
-    --therapy-border-light: 217.2 32.6% 17.5%;
-    --therapy-button: #87CEEB;
-    --therapy-button-text: #FFFFFF;
-    --therapy-hover: #4682B4;
-    --therapy-active: #4682B4;
-    --therapy-text-muted: #666666;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 262.1 83.3% 57.8%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 262.1 83.3% 57.8%;
+    --radius: 0.75rem;
   }
 
-  body {
-    @apply bg-therapy-background text-therapy-text-primary;
-    background-image: linear-gradient(to bottom right, rgba(255, 255, 255, 0.2), transparent);
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
   }
+}
+
+@layer base {
+  * {
+    @apply border-[hsl(var(--border))];
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+.container {
+  @apply mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
@@ -35,32 +75,31 @@
 
 /* Peaceful focus styles */
 *:focus {
-  @apply outline-none ring-2 ring-therapy-gradient-start/30 ring-offset-1 ring-offset-therapy-surface;
+  @apply outline-none ring-2 ring-ring/30 ring-offset-1 ring-offset-background;
 }
 
 /* Button styles */
 .therapy-button {
-  @apply bg-therapy-button text-therapy-button-text px-4 py-2 rounded-xl
-         hover:bg-therapy-hover active:bg-therapy-active
+  @apply bg-primary text-primary-foreground px-4 py-2 rounded-xl
+         hover:bg-primary-foreground active:bg-primary-foreground
          transition-all duration-200 shadow-sm;
 }
 
-/* Gradient text */
 .gradient-text {
-  @apply bg-gradient-to-r from-therapy-gradient-start to-therapy-gradient-end bg-clip-text text-transparent;
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-primary via-purple-500 to-primary/80;
 }
 
 /* Card styles */
 .therapy-card {
-  @apply bg-therapy-surface border border-therapy-border-light/20 rounded-2xl shadow-sm
-         hover:shadow-md hover:border-therapy-border-light/30 transition-all duration-300;
+  @apply bg-card border border-border/20 rounded-2xl shadow-sm
+         hover:shadow-md hover:border-border/30 transition-all duration-300;
 }
 
 /* Input styles */
 .therapy-input {
-  @apply bg-therapy-surface border border-therapy-border-light/20 rounded-xl px-4 py-2
-         focus:border-therapy-gradient-start/50 focus:ring-2 focus:ring-therapy-gradient-start/20
-         placeholder:text-therapy-text-muted/50;
+  @apply bg-input border border-border/20 rounded-xl px-4 py-2
+         focus:border-primary/50 focus:ring-2 focus:ring-primary/20
+         placeholder:text-muted/50;
 }
 
 /* Message bubbles */
@@ -69,9 +108,39 @@
 }
 
 .message-bubble-user {
-  @apply bg-gradient-to-r from-therapy-gradient-start to-therapy-gradient-end text-white;
+  @apply bg-gradient-to-r from-primary to-primary-foreground text-white;
 }
 
 .message-bubble-bot {
-  @apply bg-therapy-surface text-therapy-text-primary border border-therapy-border-light/20;
+  @apply bg-card text-foreground border border-border/20;
+}
+
+/* Light theme specific styles */
+.app-background {
+  @apply bg-gradient-to-b from-purple-50/50 via-white to-white;
+}
+
+.card-hover {
+  @apply hover:shadow-lg hover:bg-white/80 transition-all duration-300;
+}
+
+.input-field {
+  @apply bg-white border-gray-100 focus:border-primary/20 focus:ring-primary/10;
+}
+
+/* Animation utilities */
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
 }

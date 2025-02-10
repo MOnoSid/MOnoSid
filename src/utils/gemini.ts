@@ -67,7 +67,7 @@ export const getTherapyResponse = async (
       throw new Error('API key not configured');
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite-preview-02-05" });
 
     // Enhanced prompt with emotion awareness
     const prompt = `You are Dr. Sky, a compassionate and experienced therapist. 
@@ -134,7 +134,7 @@ export const getCopingStrategies = async (
       throw new Error('API key not configured');
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite-preview-02-05" });
 
     // Create conversation context
     const conversationContext = recentMessages

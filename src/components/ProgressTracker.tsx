@@ -185,7 +185,7 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({
       {/* Session Summary */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-blue-500">
             <Brain className="w-5 h-5 text-blue-500" />
             <CardTitle>Key points from your conversation</CardTitle>
           </div>
@@ -193,7 +193,7 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({
         </CardHeader>
         <CardContent>
           {sessionSummary ? (
-            <div className="prose prose-sm max-w-none">
+            <div className="prose prose-sm max-w-none text-blue-100">
               {formatSummary(sessionSummary)}
             </div>
           ) : (
@@ -209,7 +209,7 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({
       {/* Emotional Journey */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-rose-500">
             <Heart className="w-5 h-5 text-rose-500" />
             <CardTitle>Emotional Journey</CardTitle>
           </div>
@@ -352,7 +352,7 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({
               </ResponsiveContainer>
               
               {/* Engagement Metrics Summary */}
-              <div className="mt-6 grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="mt-6 grid grid-cols-2 md:grid-cols-5 gap-4 text-white">
                 {engagementData.map((metric, index) => (
                   <div key={index} className="text-center">
                     <div className="text-sm font-medium text-gray-900">
