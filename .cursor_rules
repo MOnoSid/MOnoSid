@@ -1,0 +1,100 @@
+{
+  "version": "1.0",
+  "rules": {
+    "naming": {
+      "components": "PascalCase",
+      "functions": "camelCase",
+      "variables": "camelCase",
+      "interfaces": "PascalCase",
+      "types": "PascalCase",
+      "constants": "UPPER_SNAKE_CASE",
+      "files": {
+        "components": "PascalCase.tsx",
+        "utils": "camelCase.ts",
+        "pages": "PascalCase.tsx",
+        "styles": "camelCase.css"
+      }
+    },
+    "formatting": {
+      "indentSize": 2,
+      "maxLineLength": 100,
+      "trailingComma": "es5",
+      "semiColons": true,
+      "quotes": "single",
+      "jsxQuotes": "double"
+    },
+    "imports": {
+      "order": [
+        "react",
+        "react-*",
+        "external-libraries",
+        "@/*",
+        "components/*",
+        "utils/*",
+        "styles/*"
+      ],
+      "grouping": true,
+      "aliasDirectories": {
+        "@": "src"
+      }
+    },
+    "components": {
+      "propsInterface": true,
+      "propsNaming": "${ComponentName}Props",
+      "stateNaming": "${stateName}State",
+      "emotionNaming": "${emotionName}Data"
+    },
+    "typescript": {
+      "strict": true,
+      "noImplicitAny": true,
+      "noUnusedLocals": true,
+      "noUnusedParameters": true
+    },
+    "testing": {
+      "filePattern": "**/*.test.{ts,tsx}",
+      "coverage": {
+        "statements": 80,
+        "branches": 80,
+        "functions": 80,
+        "lines": 80
+      }
+    },
+    "ai": {
+      "modelVersioning": {
+        "gemini": "gemini-2.0-flash-lite-preview-02-05",
+        "emotionAnalysis": "latest"
+      },
+      "promptFormatting": {
+        "maxLength": 2048,
+        "includeContext": true,
+        "sanitizeInput": true
+      }
+    },
+    "security": {
+      "apiKeys": {
+        "storage": "environment",
+        "prefix": "VITE_",
+        "required": ["GEMINI_API_KEY"]
+      },
+      "sanitization": {
+        "userInput": true,
+        "apiResponses": true
+      }
+    },
+    "accessibility": {
+      "aria": true,
+      "semanticHTML": true,
+      "colorContrast": true,
+      "keyboardNavigation": true
+    },
+    "performance": {
+      "bundleSize": {
+        "maxInitial": "500kb",
+        "maxChunk": "250kb"
+      },
+      "imageOptimization": true,
+      "lazyLoading": true,
+      "memoization": true
+    }
+  }
+} 

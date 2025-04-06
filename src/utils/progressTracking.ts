@@ -45,10 +45,85 @@ interface Message {
 export class ProgressTracker {
   private genAI: GoogleGenerativeAI;
   private model: any;
+  private static readonly STORAGE_KEY = 'therapy-progress';
+  private static readonly MAX_RETRIES = 3;
+  private static readonly RETRY_DELAY = 1000;
 
   constructor(apiKey: string) {
+    if (!apiKey) {
+      throw new Error('API key is required for progress tracking');
+    }
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite-preview-02-05" });
+  }
+
+  private async retryOperation<T>(operation: () => Promise<T>, retries = ProgressTracker.MAX_RETRIES): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (retries > 0) {
+        await new Promise(resolve => setTimeout(resolve, ProgressTracker.RETRY_DELAY));
+        return this.retryOperation(operation, retries - 1);
+      }
+      throw error;
+    }
+  }
+
+  private validateProgressData(data: ProgressData): boolean {
+    return (
+      typeof data.sessionSummary === 'string' &&
+      Array.isArray(data.goals) &&
+      typeof data.improvements === 'object' &&
+      Array.isArray(data.improvements.strengths) &&
+      Array.isArray(data.improvements.challenges) &&
+      Array.isArray(data.improvements.recommendations) &&
+      typeof data.timestamp === 'string' &&
+      typeof data.emotionalJourney === 'object' &&
+      Array.isArray(data.emotionalJourney.emotions) &&
+      Array.isArray(data.emotionalJourney.dominantEmotions) &&
+      Array.isArray(data.emotionalJourney.engagementLevel)
+    );
+  }
+
+  async saveProgress(progressData: ProgressData): Promise<void> {
+    try {
+      if (!this.validateProgressData(progressData)) {
+        throw new Error('Invalid progress data format');
+      }
+
+      const existingData = await this.getProgressHistory();
+      const updatedData = [...existingData, progressData];
+      
+      // Keep only the last 50 sessions to prevent storage issues
+      const limitedData = updatedData.slice(-50);
+      
+      await this.retryOperation(async () => {
+        localStorage.setItem(ProgressTracker.STORAGE_KEY, JSON.stringify(limitedData));
+      });
+    } catch (error) {
+      console.error('Error saving progress:', error);
+      throw new Error('Failed to save progress data');
+    }
+  }
+
+  async getProgressHistory(): Promise<ProgressData[]> {
+    try {
+      const data = localStorage.getItem(ProgressTracker.STORAGE_KEY);
+      if (!data) return [];
+
+      const parsedData = JSON.parse(data);
+      if (!Array.isArray(parsedData)) return [];
+
+      return parsedData.filter(item => this.validateProgressData(item));
+    } catch (error) {
+      console.error('Error getting progress history:', error);
+      return [];
+    }
+  }
+
+  async getLatestProgress(): Promise<ProgressData | null> {
+    const history = await this.getProgressHistory();
+    return history.length > 0 ? history[history.length - 1] : null;
   }
 
   private parseAnalysisResponse(text: string): SessionAnalysis {
@@ -99,10 +174,14 @@ export class ProgressTracker {
           progress.goals = goalLines.map(line => {
             const [goal, statusStr] = line.split('|').map(s => s.trim());
             const progressMatch = statusStr.match(/(\d+)%/);
-            const progress = progressMatch ? parseInt(progressMatch[1]) : 0;
-            const status = statusStr.toLowerCase().includes('achieved') ? 'achieved' :
-                          statusStr.toLowerCase().includes('progress') ? 'in-progress' : 'not-started';
-            return { goal, progress, status };
+            const progressValue = progressMatch ? parseInt(progressMatch[1]) : 0;
+            const status = this.determineGoalStatus(progressValue);
+            
+            return {
+              goal,
+              progress: progressValue,
+              status
+            };
           }).filter(g => g.goal);
         } else if (sectionTitle.includes('improvements')) {
           const lines = section.split('\n').slice(1);
@@ -145,10 +224,10 @@ export class ProgressTracker {
       
       // Parse emotional states
       const emotions: EmotionData[] = [];
-      const emotionLines = response.split('\n').filter(line => line.includes('|'));
+      const emotionLines = response.split('\n').filter((line: string) => line.includes('|'));
       
-      emotionLines.forEach(line => {
-        const [timestamp, emotion, value] = line.split('|').map(s => s.trim());
+      emotionLines.forEach((line: string) => {
+        const [timestamp, emotion, value] = line.split('|').map((s: string) => s.trim());
         if (timestamp && emotion && value) {
           emotions.push({
             timestamp,
@@ -203,7 +282,7 @@ export class ProgressTracker {
       const ratings = response.match(/\d+/g)?.slice(0, 5) || [];
       
       // Convert ratings to numbers and ensure they're within 0-100
-      const normalizedRatings = ratings.map(n => Math.min(100, Math.max(0, parseInt(n, 10) || 0)));
+      const normalizedRatings = ratings.map((n: string) => Math.min(100, Math.max(0, parseInt(n, 10) || 0)));
       
       // Pad with zeros if we don't have enough ratings
       while (normalizedRatings.length < 5) {
@@ -388,6 +467,10 @@ ${conversation.join('\n')}`;
 
   async trackProgressWithEmotions(messages: Message[]): Promise<ProgressData> {
     try {
+      if (!Array.isArray(messages) || messages.length === 0) {
+        throw new Error('No messages provided for progress tracking');
+      }
+
       // Run all analyses in parallel for better performance
       const [
         emotionalAnalysis,
@@ -396,16 +479,23 @@ ${conversation.join('\n')}`;
         goals,
         improvements
       ] = await Promise.all([
-        this.analyzeEmotions(messages),
-        this.analyzeEngagement(messages),
-        this.analyzeSessionSummary(messages),
-        this.analyzeGoals(messages),
-        this.analyzeImprovements(messages)
+        this.retryOperation(() => this.analyzeEmotions(messages)),
+        this.retryOperation(() => this.analyzeEngagement(messages)),
+        this.retryOperation(() => this.analyzeSessionSummary(messages)),
+        this.retryOperation(() => this.analyzeGoals(messages)),
+        this.retryOperation(() => this.analyzeImprovements(messages))
       ]);
 
       const progressData: ProgressData = {
         sessionSummary,
-        goals,
+        goals: goals.map(goal => {
+          const status: 'not-started' | 'in-progress' | 'achieved' = this.determineGoalStatus(goal.progress);
+          return {
+            goal: goal.title || '',
+            progress: goal.progress,
+            status
+          };
+        }),
         improvements,
         timestamp: new Date().toISOString(),
         emotionalJourney: {
@@ -415,8 +505,10 @@ ${conversation.join('\n')}`;
         }
       };
 
-      // Save progress
-      await this.saveProgress(progressData);
+      // Validate and save progress
+      if (this.validateProgressData(progressData)) {
+        await this.saveProgress(progressData);
+      }
 
       return progressData;
     } catch (error) {
@@ -532,31 +624,31 @@ ${conversation.join('\n')}`;
       const response = await result.response.text();
       
       const improvements = {
-        strengths: [],
-        challenges: [],
-        recommendations: []
+        strengths: [] as string[],
+        challenges: [] as string[],
+        recommendations: [] as string[]
       };
 
       const sections = response.split('\n\n');
-      sections.forEach(section => {
+      sections.forEach((section: string) => {
         if (section.startsWith('Strengths:')) {
           improvements.strengths = section
             .replace('Strengths:', '')
             .split('\n')
-            .filter(line => line.trim().startsWith('-'))
-            .map(line => line.replace('-', '').trim());
+            .filter((line: string) => line.trim().startsWith('-'))
+            .map((line: string) => line.replace('-', '').trim());
         } else if (section.startsWith('Challenges:')) {
           improvements.challenges = section
             .replace('Challenges:', '')
             .split('\n')
-            .filter(line => line.trim().startsWith('-'))
-            .map(line => line.replace('-', '').trim());
+            .filter((line: string) => line.trim().startsWith('-'))
+            .map((line: string) => line.replace('-', '').trim());
         } else if (section.startsWith('Recommendations:')) {
           improvements.recommendations = section
             .replace('Recommendations:', '')
             .split('\n')
-            .filter(line => line.trim().startsWith('-'))
-            .map(line => line.replace('-', '').trim());
+            .filter((line: string) => line.trim().startsWith('-'))
+            .map((line: string) => line.replace('-', '').trim());
         }
       });
 
@@ -593,37 +685,137 @@ ${conversation.join('\n')}`;
   private extractBulletPoints(text: string): string[] {
     return text
       .split('\n')
-      .map(line => line.replace(/^[-•*]\s*/, '').trim())
-      .filter(line => line.length > 0);
+      .map((line: string) => line.replace(/^[-•*]\s*/, '').trim())
+      .filter((line: string) => line.length > 0);
   }
 
-  private extractListItems(sections: string[], header: string) {
+  private extractListItems(sections: string[], header: string): string[] {
     const section = sections.find(s => s.includes(header)) || '';
     return section
       .split('\n')
-      .filter(line => line.trim().startsWith('-'))
-      .map(line => line.replace('-', '').trim());
+      .filter((line: string) => line.trim().startsWith('-'))
+      .map((line: string) => line.replace('-', '').trim());
   }
 
-  async saveProgress(progressData: ProgressData): Promise<void> {
+  private determineGoalStatus(progress: number): 'not-started' | 'in-progress' | 'achieved' {
+    if (progress >= 100) return 'achieved';
+    if (progress > 0) return 'in-progress';
+    return 'not-started';
+  }
+
+  async endSession(messages: Message[]): Promise<ProgressData> {
     try {
-      const existingData = localStorage.getItem('therapy-progress') || '[]';
-      const allProgress = JSON.parse(existingData);
-      allProgress.push(progressData);
-      localStorage.setItem('therapy-progress', JSON.stringify(allProgress));
+      if (!Array.isArray(messages) || messages.length === 0) {
+        throw new Error('No messages provided for session analysis');
+      }
+
+      // Get the latest progress first
+      const latestProgress = await this.getLatestProgress();
+      
+      // Run final analysis
+      const finalProgress = await this.trackProgressWithEmotions(messages);
+
+      // Merge with previous goals if they exist
+      if (latestProgress?.goals) {
+        finalProgress.goals = this.mergeGoals(latestProgress.goals, finalProgress.goals);
+      }
+
+      // Ensure all emotional journey data is included
+      if (latestProgress?.emotionalJourney.emotions) {
+        finalProgress.emotionalJourney.emotions = [
+          ...latestProgress.emotionalJourney.emotions,
+          ...finalProgress.emotionalJourney.emotions
+        ];
+      }
+
+      // Calculate final engagement levels
+      const engagementTrend = await this.calculateEngagementTrend(messages);
+      finalProgress.emotionalJourney.engagementLevel = engagementTrend;
+
+      // Generate comprehensive session summary
+      const sessionAnalysis = await this.analyzeSession(messages.map(m => m.text));
+      finalProgress.sessionSummary = this.generateComprehensiveSummary(
+        finalProgress.sessionSummary,
+        sessionAnalysis
+      );
+
+      // Save final progress
+      await this.saveProgress(finalProgress);
+
+      return finalProgress;
     } catch (error) {
-      console.error('Error saving progress:', error);
+      console.error('Error ending session:', error);
+      throw error;
     }
   }
 
-  async getProgressHistory(): Promise<ProgressData[]> {
+  private mergeGoals(previousGoals: ProgressData['goals'], newGoals: ProgressData['goals']): ProgressData['goals'] {
+    const mergedGoals = [...previousGoals];
+    
+    newGoals.forEach(newGoal => {
+      const existingGoalIndex = mergedGoals.findIndex(g => g.goal === newGoal.goal);
+      if (existingGoalIndex >= 0) {
+        // Update existing goal progress
+        mergedGoals[existingGoalIndex].progress = Math.max(
+          mergedGoals[existingGoalIndex].progress,
+          newGoal.progress
+        );
+        mergedGoals[existingGoalIndex].status = this.determineGoalStatus(
+          mergedGoals[existingGoalIndex].progress
+        );
+      } else {
+        // Add new goal
+        mergedGoals.push(newGoal);
+      }
+    });
+
+    return mergedGoals;
+  }
+
+  private async calculateEngagementTrend(messages: Message[]): Promise<number[]> {
+    // Split messages into segments for trend analysis
+    const segments = this.splitMessagesIntoSegments(messages);
+    const engagementPromises = segments.map(segment => this.analyzeEngagement(segment));
+    
     try {
-      const data = localStorage.getItem('therapy-progress') || '[]';
-      return JSON.parse(data);
+      const engagementResults = await Promise.all(engagementPromises);
+      return this.averageEngagementLevels(engagementResults);
     } catch (error) {
-      console.error('Error getting progress history:', error);
-      return [];
+      console.error('Error calculating engagement trend:', error);
+      return [0, 0, 0, 0, 0];
     }
+  }
+
+  private splitMessagesIntoSegments(messages: Message[]): Message[][] {
+    const segmentSize = Math.ceil(messages.length / 3); // Split into 3 segments
+    const segments: Message[][] = [];
+    
+    for (let i = 0; i < messages.length; i += segmentSize) {
+      segments.push(messages.slice(i, i + segmentSize));
+    }
+    
+    return segments;
+  }
+
+  private averageEngagementLevels(engagementResults: number[][]): number[] {
+    const summedLevels = engagementResults.reduce((acc, curr) => {
+      return acc.map((val, idx) => val + (curr[idx] || 0));
+    }, [0, 0, 0, 0, 0]);
+    
+    return summedLevels.map(sum => Math.round(sum / engagementResults.length));
+  }
+
+  private generateComprehensiveSummary(currentSummary: string, analysis: SessionAnalysis): string {
+    const summaryParts = [
+      currentSummary,
+      `\n\nEmotional State: ${analysis.emotionalState}`,
+      '\nKey Topics:',
+      ...analysis.keyTopics.map(topic => `- ${topic}`),
+      '\nKey Insights:',
+      ...analysis.insights.map(insight => `- ${insight}`)
+    ];
+
+    return summaryParts.join('\n').trim();
   }
 }
 

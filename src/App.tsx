@@ -25,7 +25,7 @@ const App = () => {
         <BrowserRouter>
           <QueryClientProvider client={queryClient}>
             <TooltipProvider>
-              <main className="container mx-auto px-4 py-8">
+              <main>
                 <Routes>
                   {/* Landing page is the default route */}
                   <Route path="/" element={<Landing />} />

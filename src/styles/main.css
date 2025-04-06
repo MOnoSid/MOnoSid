@@ -1,0 +1,41 @@
+/* Base styles for mobile first approach */
+.container {
+  width: 100%;
+  padding: 15px;
+}
+
+/* Extra small devices (phones, less than 768px) */
+@media screen and (max-width: 767px) {
+  .container {
+    padding: 10px;
+  }
+}
+
+/* Tablet devices */
+@media screen and (min-width: 768px) {
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+}
+
+/* Desktop devices */
+@media screen and (min-width: 1024px) {
+  .container {
+    max-width: 960px;
+  }
+}
+
+/* Large desktop screens */
+@media screen and (min-width: 1200px) {
+  .container {
+    max-width: 1140px;
+  }
+}
+
+/* Extra large desktop screens */
+@media screen and (min-width: 1400px) {
+  .container {
+    max-width: 1320px;
+  }
+}

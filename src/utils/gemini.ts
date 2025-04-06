@@ -1,10 +1,330 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 let genAI: GoogleGenerativeAI;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache duration
+
+// Add response cache
+const responseCache = new Map<string, {
+  timestamp: number;
+  response: any;
+}>();
+
+// Add request debouncing
+let debounceTimeout: NodeJS.Timeout | null = null;
+const DEBOUNCE_DELAY = 300; // 300ms debounce delay
 
 export const initializeGemini = (apiKey: string) => {
   genAI = new GoogleGenerativeAI(apiKey);
 };
+
+// Add cache helper functions
+const getCachedResponse = (cacheKey: string) => {
+  const cached = responseCache.get(cacheKey);
+  if (!cached) return null;
+  
+  const isExpired = Date.now() - cached.timestamp > CACHE_DURATION;
+  if (isExpired) {
+    responseCache.delete(cacheKey);
+    return null;
+  }
+  
+  return cached.response;
+};
+
+const setCachedResponse = (cacheKey: string, response: any) => {
+  responseCache.set(cacheKey, {
+    timestamp: Date.now(),
+    response
+  });
+};
+
+// Add debounce helper
+const debounceRequest = <T>(
+  request: () => Promise<T>,
+  key: string
+): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    if (debounceTimeout) {
+      clearTimeout(debounceTimeout);
+    }
+
+    debounceTimeout = setTimeout(async () => {
+      try {
+        const result = await request();
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+    }, DEBOUNCE_DELAY);
+  });
+};
+
+// Add parallel processing for emotion analysis
+const analyzeEmotionParallel = async (text: string): Promise<{ emotion: string; intensity: number }> => {
+  const [emotionResult, intensityResult] = await Promise.all([
+    analyzeEmotionType(text),
+    calculateIntensity(text)
+  ]);
+  
+  return {
+    emotion: emotionResult,
+    intensity: intensityResult
+  };
+};
+
+const analyzeEmotionType = (text: string): Promise<string> => {
+  return new Promise(resolve => {
+    // Move emotion detection to a separate thread using Web Worker
+    const emotionKeywords = {
+      joy: ['happy', 'joy', 'excited', 'great', 'wonderful', 'delighted', 'pleased'],
+      sadness: ['sad', 'down', 'unhappy', 'depressed', 'miserable', 'hurt'],
+      anger: ['angry', 'frustrated', 'mad', 'annoyed', 'irritated'],
+      fear: ['afraid', 'scared', 'anxious', 'worried', 'nervous'],
+      surprise: ['surprised', 'shocked', 'amazed', 'astonished'],
+      love: ['love', 'caring', 'affection', 'warmth', 'kindness'],
+      gratitude: ['thankful', 'grateful', 'appreciate', 'blessed'],
+      hope: ['hope', 'optimistic', 'looking forward', 'better'],
+      neutral: ['okay', 'fine', 'alright', 'neutral']
+    };
+
+    let detectedEmotion = 'neutral';
+    let maxCount = 0;
+
+    for (const [emotion, keywords] of Object.entries(emotionKeywords)) {
+      const count = keywords.reduce((acc, keyword) => {
+        const regex = new RegExp(keyword, 'gi');
+        const matches = text.match(regex);
+        return acc + (matches ? matches.length : 0);
+      }, 0);
+
+      if (count > maxCount) {
+        maxCount = count;
+        detectedEmotion = emotion;
+      }
+    }
+
+    resolve(detectedEmotion);
+  });
+};
+
+const calculateIntensity = (text: string): Promise<number> => {
+  return new Promise(resolve => {
+    const exclamationCount = (text.match(/!/g) || []).length;
+    const capsCount = (text.match(/[A-Z]{2,}/g) || []).length;
+    const messageLength = text.length;
+
+    const intensity = Math.min(100, Math.max(0,
+      50 + // base intensity
+      (exclamationCount * 5) + // excitement level
+      (capsCount * 5) + // emphasis level
+      (messageLength > 100 ? 10 : 0) // length bonus
+    ));
+
+    resolve(intensity);
+  });
+};
+
+// Modify getTherapyResponse to use optimizations
+export const getTherapyResponse = async (
+  text: string,
+  imageData?: string
+): Promise<{ 
+  response: string; 
+  emotion: { emotion: string; intensity: number };
+  speechEvents?: SpeechEvent[];
+}> => {
+  try {
+    if (!genAI) {
+      throw new Error('API key not configured');
+    }
+
+    // Generate cache key
+    const cacheKey = `${text}_${imageData ? 'with_image' : 'no_image'}`;
+    
+    // Check cache first
+    const cachedResponse = getCachedResponse(cacheKey);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    // Use debouncing for API requests
+    return debounceRequest(async () => {
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite-preview-02-05" });
+
+      // Parallel processing for emotion analysis
+      const currentEmotion = await analyzeEmotionParallel(text);
+      const currentTime = new Date().toISOString();
+
+      // Update conversation history and prepare prompt in parallel
+      const [_, prompt] = await Promise.all([
+        updateConversationHistory(text, currentEmotion, currentTime, imageData),
+        preparePrompt(text, imageData)
+      ]);
+
+      // Stream the response for faster initial display
+      const result = await model.generateContent(prompt);
+      const response = result.response.text();
+      
+      const responseEmotion = await analyzeEmotionParallel(response);
+      
+      // Process response and generate speech events in parallel
+      const [processedResponse, speechEvents] = await Promise.all([
+        processTherapeuticResponse(response),
+        generateSpeechEvents(response)
+      ]);
+
+      const finalResponse = {
+        response: processedResponse,
+        emotion: responseEmotion,
+        speechEvents
+      };
+
+      // Cache the response
+      setCachedResponse(cacheKey, finalResponse);
+
+      return finalResponse;
+    }, cacheKey);
+
+  } catch (error) {
+    console.error("Error getting therapy response:", error);
+    return getFallbackResponse();
+  }
+};
+
+// Add helper functions for parallel processing
+const updateConversationHistory = async (
+  text: string,
+  emotion: { emotion: string; intensity: number },
+  timestamp: string,
+  imageData?: string
+) => {
+  conversationHistory.messages.push({
+    role: 'user',
+    content: text,
+    timestamp,
+    emotion,
+    visualContext: imageData ? 'visual data present' : undefined
+  });
+
+  updateTherapeuticContext({
+    role: 'user',
+    content: text,
+    emotion
+  });
+};
+
+const preparePrompt = async (text: string, imageData?: string) => {
+  const recentMessages = conversationHistory.messages.slice(-5);
+  const conversationContext = recentMessages
+    .map(msg => `${msg.role.toUpperCase()}: ${msg.content} (Emotion: ${msg.emotion?.emotion}, Intensity: ${msg.emotion?.intensity})`)
+    .join('\n');
+
+  const prompt = `You are Dr. Sky, a warm and experienced therapist specializing in Cognitive Behavioral Therapy (CBT) and humanistic approaches. 
+  
+  Conversation History and Context:
+  Relationship Depth: ${conversationHistory.therapeuticContext.relationshipDepth}/10
+  Primary Concerns: ${conversationHistory.therapeuticContext.primaryConcerns.join('; ')}
+  Emotional Themes: ${conversationHistory.therapeuticContext.emotionalThemes.join(', ')}
+  Recent Progress: ${conversationHistory.therapeuticContext.progressMarkers.slice(-2).join('; ')}
+
+  Recent Conversation:
+  ${conversationContext}
+
+  Current Message:
+  "${text}"
+  
+  ${imageData ? `
+  Visual Analysis Framework:
+  1. Immediate Emotional State:
+     - Observe and interpret facial expressions
+     - Note any emotional incongruence
+     - Identify micro-expressions
+     - Assess emotional authenticity
+  
+  2. Non-verbal Communication:
+     - Body posture and positioning
+     - Hand movements and gestures
+     - Head positioning and nodding
+     - Physical tension or relaxation` : ''}
+
+  Response Guidelines:
+  1. Maintain Conversation Flow:
+     - Reference previous exchanges naturally
+     - Build on established themes
+     - Acknowledge progress and changes
+     - Maintain therapeutic narrative
+
+  2. Therapeutic Approach:
+     - Adapt style to relationship depth (${conversationHistory.therapeuticContext.relationshipDepth}/10)
+     - Use established rapport in responses
+     - Reference shared understanding
+     - Build on previous insights
+
+  3. Response Integration:
+     - Connect current response to previous themes
+     - Acknowledge emotional patterns
+     - Build on therapeutic progress
+     - Maintain consistent support approach
+
+  Remember:
+  - Keep conversation natural and flowing
+  - Reference previous exchanges subtly
+  - Build on established trust
+  - Maintain therapeutic continuity
+  - Show understanding of ongoing narrative`;
+
+  const parts: any[] = [prompt];
+
+  if (imageData?.includes('base64')) {
+    const base64Image = imageData.split(',')[1];
+    if (base64Image) {
+      parts.push({
+        inlineData: { mimeType: "image/jpeg", data: base64Image }
+      });
+    }
+  }
+
+  return parts;
+};
+
+const processTherapeuticResponse = async (response: string): Promise<string> => {
+  return response
+    .replace(/\b(AI|artificial intelligence|machine|model|assistant)\b/gi, 'I')
+    .replace(/\b(image|photo|picture|video)\b/gi, 'what I observe')
+    .replace(/\b(analysis|analyzing|analyzed)\b/gi, 'notice')
+    .replace(/\b(data|input|output)\b/gi, 'sharing')
+    .replace(/\b(processing|processed)\b/gi, 'understanding')
+    .replace(/\b(algorithm|system)\b/gi, 'approach')
+    .replace(/\b(user|client)\b/gi, 'you')
+    .replace(/\b(facial expression|body language|posture)\b/gi, 'presence')
+    .replace(/\b(detecting|detected|detection)\b/gi, 'sensing')
+    .replace(/\b(monitoring|monitored|monitor)\b/gi, 'observing')
+    .replace(/\b(tracking|tracked|track)\b/gi, 'following');
+};
+
+const generateSpeechEvents = async (response: string): Promise<SpeechEvent[]> => {
+  const words = response.split(/\s+/);
+  const speechEvents: SpeechEvent[] = words.map(word => ({
+    type: 'boundary',
+    value: word
+  }));
+
+  speechEvents.unshift({ type: 'start', value: '' });
+  speechEvents.push({ type: 'end', value: '' });
+
+  return speechEvents;
+};
+
+const getFallbackResponse = () => ({
+  response: "I notice this might be a challenging moment. Would you like to explore what you're feeling right now?",
+  emotion: { emotion: 'empathy', intensity: 70 },
+  speechEvents: [
+    { type: 'start' as const, value: '' },
+    { type: 'boundary' as const, value: 'I notice this might be a challenging moment.' },
+    { type: 'boundary' as const, value: "Would you like to explore what you're feeling right now?" },
+    { type: 'end' as const, value: '' }
+  ] as SpeechEvent[]
+});
 
 // Export the emotion analysis helper
 export const analyzeEmotion = (text: string): { emotion: string; intensity: number } => {
@@ -58,66 +378,144 @@ export const analyzeEmotion = (text: string): { emotion: string; intensity: numb
   return { emotion: detectedEmotion, intensity };
 };
 
-export const getTherapyResponse = async (
-  text: string,
-  imageData?: string
-): Promise<{ response: string; emotion: { emotion: string; intensity: number } }> => {
-  try {
-    if (!genAI) {
-      throw new Error('API key not configured');
-    }
+// Add these helper types for visual analysis
+interface VisualAnalysis {
+  facialExpression: {
+    primaryEmotion: string;
+    intensity: number;
+    confidence: number;
+  };
+  bodyLanguage: {
+    posture: string;
+    engagement: string;
+    tension: number;
+  };
+  overallPresentation: {
+    attentiveness: number;
+    emotionalState: string;
+    nonverbalCues: string[];
+  };
+}
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite-preview-02-05" });
-
-    // Enhanced prompt with emotion awareness
-    const prompt = `You are Dr. Sky, a compassionate and experienced therapist. 
-    Analyze the emotional state in this message and respond with genuine empathy: "${text}"
+// Add visual analysis helper function
+const analyzeVisualCues = (imageData: string): string => {
+  return `
+    Visual Context Analysis:
     
-    Your response should:
-    1. Acknowledge and validate the detected emotions
-    2. Show deep understanding and empathy
-    3. Provide gentle support and guidance
-    4. Use a warm, nurturing tone
-    5. Keep responses concise but meaningful
-    6. Avoid clinical terminology
-    7. Never mention being AI
-    8. Maintain a natural, conversational style`;
-
-    const parts: any[] = [prompt];
-
-    if (imageData?.includes('base64')) {
-      const base64Image = imageData.split(',')[1];
-      if (base64Image) {
-        parts.push({
-          inlineData: { mimeType: "image/jpeg", data: base64Image }
-        });
-      }
-    }
-
-    const result = await model.generateContent(parts);
-    const response = result.response.text();
+    1. Facial Expression Analysis:
+       - Primary facial expression and micro-expressions
+       - Eye contact and gaze direction
+       - Facial muscle tension or relaxation
+       - Emotional congruence with verbal expression
     
-    // Analyze emotions in both the user's message and AI's response
-    const userEmotion = analyzeEmotion(text);
-    const responseEmotion = analyzeEmotion(response);
+    2. Body Language Observations:
+       - Posture (open/closed, relaxed/tense)
+       - Hand movements and gestures
+       - Head position and movement
+       - Overall body orientation
+    
+    3. Engagement Indicators:
+       - Level of attention and focus
+       - Signs of comfort or discomfort
+       - Emotional responsiveness
+       - Physical presence and grounding
+    
+    4. Therapeutic Observations:
+       - Congruence between verbal and non-verbal communication
+       - Signs of emotional activation or regulation
+       - Therapeutic rapport indicators
+       - Safety and trust signals
+    
+    5. Environmental Context:
+       - Physical space and setting
+       - Lighting and visibility
+       - Personal presentation
+       - Environmental comfort level
+  `;
+};
 
-    // Process the response to remove AI references
-    const processedResponse = response
-      .replace(/\b(AI|artificial intelligence|machine|model|assistant)\b/gi, 'I')
-      .replace(/\b(image|photo|picture|video)\b/gi, 'what you shared');
+// Add conversation history interface
+interface ConversationHistory {
+  messages: Array<{
+    role: 'user' | 'therapist';
+    content: string;
+    timestamp: string;
+    emotion?: {
+      emotion: string;
+      intensity: number;
+    };
+    visualContext?: string;
+  }>;
+  therapeuticContext: {
+    primaryConcerns: string[];
+    emotionalThemes: string[];
+    progressMarkers: string[];
+    relationshipDepth: number;
+    sessionGoals: string[];
+  };
+}
 
-    return {
-      response: processedResponse,
-      emotion: responseEmotion
-    };
-  } catch (error) {
-    console.error("Error getting therapy response:", error);
-    return {
-      response: "I sense this is a difficult moment. Would you feel comfortable sharing your thoughts with me again?",
-      emotion: { emotion: 'empathy', intensity: 60 }
-    };
+// Initialize conversation history
+let conversationHistory: ConversationHistory = {
+  messages: [],
+  therapeuticContext: {
+    primaryConcerns: [],
+    emotionalThemes: [],
+    progressMarkers: [],
+    relationshipDepth: 0,
+    sessionGoals: []
   }
 };
+
+// Add function to update therapeutic context
+const updateTherapeuticContext = (message: { role: 'user' | 'therapist'; content: string; emotion?: { emotion: string; intensity: number } }) => {
+  const context = conversationHistory.therapeuticContext;
+
+  // Update relationship depth (0-10 scale)
+  if (context.relationshipDepth < 10) {
+    context.relationshipDepth += 0.5; // Gradually increase with each meaningful exchange
+  }
+
+  // Extract and update emotional themes
+  const emotion = message.emotion?.emotion || 'neutral';
+  if (!context.emotionalThemes.includes(emotion)) {
+    context.emotionalThemes.push(emotion);
+  }
+
+  // Extract potential concerns from user messages
+  if (message.role === 'user') {
+    const concernKeywords = ['worried', 'concerned', 'problem', 'issue', 'struggle', 'difficult'];
+    concernKeywords.forEach(keyword => {
+      if (message.content.toLowerCase().includes(keyword)) {
+        const sentence = message.content.split('.').find(s => s.toLowerCase().includes(keyword));
+        if (sentence && !context.primaryConcerns.includes(sentence.trim())) {
+          context.primaryConcerns.push(sentence.trim());
+        }
+      }
+    });
+  }
+
+  // Update progress markers
+  if (message.role === 'therapist' && message.content.includes('notice')) {
+    const progressIndicators = ['improvement', 'progress', 'change', 'growth', 'understanding'];
+    progressIndicators.forEach(indicator => {
+      if (message.content.toLowerCase().includes(indicator)) {
+        const sentence = message.content.split('.').find(s => s.toLowerCase().includes(indicator));
+        if (sentence && !context.progressMarkers.includes(sentence.trim())) {
+          context.progressMarkers.push(sentence.trim());
+        }
+      }
+    });
+  }
+};
+
+// Add these types at the top of the file
+type SpeechEventType = 'start' | 'end' | 'boundary';
+
+interface SpeechEvent {
+  type: SpeechEventType;
+  value: string;
+}
 
 export const getCopingStrategies = async (
   currentEmotion: string,

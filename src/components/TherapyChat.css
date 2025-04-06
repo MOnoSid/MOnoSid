@@ -39,6 +39,36 @@
   }
 }
 
+/* Chat toggle button styles */
+.chat-toggle-button {
+  position: fixed;
+  z-index: 50;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.chat-toggle-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.3);
+}
+
+.chat-toggle-button:active {
+  transform: scale(0.95);
+}
+
+/* Chat panel transition */
+.chat-panel {
+  transition: transform 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.chat-panel-visible {
+  transform: translateX(0);
+}
+
+.chat-panel-hidden {
+  transform: translateX(100%);
+}
+
 /* Header animations */
 .header-animate-in {
   animation: fadeScale 0.3s ease-out forwards;
@@ -242,6 +272,17 @@
   .chat-section-mobile {
     height: 60vh;
   }
+  
+  /* Adjust chat toggle button position for mobile */
+  .chat-toggle-button {
+    bottom: 20px;
+    right: 20px;
+  }
+  
+  /* Make chat panel full width on mobile */
+  .chat-panel {
+    width: 100% !important;
+  }
 }
 
 /* Dark mode support */
@@ -251,17 +292,17 @@
   }
   
   .input-field {
-    background: rgba(30, 41, 59, 0.5);
-    border-color: rgba(51, 65, 85, 0.5);
+    border-color: #334155;
+    background: #1E293B;
   }
   
   .input-field:focus {
-    background: rgba(30, 41, 59, 0.8);
-    border-color: #60A5FA;
+    border-color: #3B82F6;
+    background: #0F172A;
   }
   
   .session-timer {
-    background: linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
+    background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
   }
   
   .settings-panel,
@@ -271,5 +312,16 @@
   
   .loading-overlay {
     background: rgba(15, 23, 42, 0.8);
+  }
+  
+  /* Dark mode for chat toggle and panel */
+  .chat-toggle-button {
+    background-color: #1E293B;
+    color: #E2E8F0;
+  }
+  
+  .chat-panel {
+    background-color: rgba(15, 23, 42, 0.9);
+    border-color: rgba(59, 130, 246, 0.3);
   }
 }

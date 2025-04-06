@@ -25,7 +25,7 @@ export default {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         therapy: {
-          // Main colorsnn
+          // Main colors
           primary: "#7C3AED",      // Vibrant purple
           secondary: "#06B6D4",    // Cyan
           tertiary: "#F59E0B",     // Warm amber
@@ -130,7 +130,11 @@ export default {
         'fade-in': {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
-        }
+        },
+        grid: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(calc(var(--cell-size) * -1))" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -141,6 +145,7 @@ export default {
         'wave3': 'wave3 1.2s ease-in-out infinite 0.2s',
         'slide-up': 'slide-up 0.3s ease-out',
         'fade-in': 'fade-in 0.5s ease-out',
+        grid: "grid 15s linear infinite",
       },
       backgroundSize: {
         'gradient-animate': '200% 200%',

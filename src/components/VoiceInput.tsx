@@ -1,9 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
-import { PhoneCall, PhoneOff } from "lucide-react";
+import { Video, VideoOff, Mic } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import './VoiceInput.css'; // Import CSS for responsive styles
 
-const MAX_UTTERANCE_LENGTH = 200; // Maximum length for each utterance chunk
+const MAX_UTTERANCE_LENGTH = 300; // Increased for ElevenLabs
+
+// ElevenLabs configuration - use import.meta.env for Vite/Next.js
+const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY || '';
+const VOICE_ID = '56AoDkrOh6qfVPDXZ7Pt'; //56AoDkrOh6qfVPDXZ7Pt
+
+// Add TypeScript interfaces
+interface AudioContextWithWebkit extends AudioContext {
+  webkitAudioContext?: AudioContext;
+}
+
+declare global {
+  interface Window {
+    webkitAudioContext: typeof AudioContext;
+  }
+}
+
+interface AudioQueueItem {
+  text: string;
+  audioBuffer?: ArrayBuffer;
+}
 
 const splitTextIntoChunks = (text: string): string[] => {
   const chunks: string[] = [];
@@ -27,19 +53,47 @@ interface VoiceInputProps {
   isProcessing: boolean;
   lastResponse?: string;
   onStateChange?: (state: 'idle' | 'listening' | 'speaking' | 'thinking') => void;
+  onSpeechEvent?: (event: { type: 'start' | 'end' | 'boundary' | 'error', value?: string }) => void;
+  autoStart?: boolean; // New prop to control auto-start behavior
 }
 
 const VoiceInput: React.FC<VoiceInputProps> = ({
   onTranscript,
   isProcessing,
   lastResponse,
-  onStateChange
+  onStateChange,
+  onSpeechEvent,
+  autoStart = false // Default to false - don't auto-start
 }) => {
-  const [isActive, setIsActive] = useState(false);
+  const [isActive, setIsActive] = useState(autoStart);
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const synthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioQueueRef = useRef<AudioQueueItem[]>([]);
+  const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const isSpeakingRef = useRef<boolean>(false);
+
+  // Function to start speech recognition
+  const startListening = () => {
+    if (!recognitionRef.current) return;
+    
+    try {
+      recognitionRef.current.start();
+      onStateChange?.('listening');
+    } catch (error) {
+      console.error('Error starting speech recognition:', error);
+    }
+  };
+
+  // Initialize Web Audio API context
+  useEffect(() => {
+    const AudioContextClass = (window.AudioContext || window.webkitAudioContext) as typeof AudioContext;
+    audioContextRef.current = new AudioContextClass();
+    return () => {
+      audioContextRef.current?.close();
+    };
+  }, []);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -48,7 +102,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
-        recognition.interimResults = true; // Enable interim results for real-time transcript
+        recognition.interimResults = true;
         recognition.lang = 'en-US';
         recognitionRef.current = recognition;
       }
@@ -58,32 +112,166 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
+      if (currentAudioSourceRef.current) {
+        currentAudioSourceRef.current.stop();
       }
       setCurrentTranscript('');
     };
   }, []);
 
-  // Handle start/stop listening
-  const startListening = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.start();
-        onStateChange?.('listening');
-      } catch (error) {
-        console.error('Failed to start recognition:', error);
+  // ElevenLabs TTS function
+  const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
+    if (!ELEVENLABS_API_KEY) {
+      throw new Error('ElevenLabs API key not found');
+    }
+
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
+      {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': ELEVENLABS_API_KEY,
+        },
+        body: JSON.stringify({
+          text,
+          model_id: 'eleven_monolingual_v1',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0.5,
+            use_speaker_boost: true
+          }
+        }),
       }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to generate speech');
+    }
+
+    return await response.arrayBuffer();
+  };
+
+  // Function to play audio buffer
+  const playAudioBuffer = async (audioBuffer: ArrayBuffer) => {
+    if (!audioContextRef.current) return;
+
+    try {
+      const buffer = await audioContextRef.current.decodeAudioData(audioBuffer);
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContextRef.current.destination);
+      
+      currentAudioSourceRef.current = source;
+
+      return new Promise<void>((resolve, reject) => {
+        source.addEventListener('ended', () => {
+          currentAudioSourceRef.current = null;
+          resolve();
+        });
+        source.addEventListener('error', (error) => {
+          reject(error);
+        });
+        source.start(0);
+      });
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      throw error;
     }
   };
 
-  const stopListening = () => {
-    if (recognitionRef.current) {
+  // Process the audio queue
+  const processAudioQueue = async () => {
+    if (audioQueueRef.current.length === 0 || isSpeakingRef.current) {
+      return;
+    }
+
+    isSpeakingRef.current = true;
+    setIsSpeaking(true);
+    onStateChange?.('speaking');
+
+    while (audioQueueRef.current.length > 0) {
+      const item = audioQueueRef.current[0];
+      
       try {
-        recognitionRef.current.stop();
+        // Generate speech if not already generated
+        if (!item.audioBuffer) {
+          item.audioBuffer = await generateSpeech(item.text);
+        }
+
+        onSpeechEvent?.({ type: 'start' });
+        
+        // Emit word boundary events based on timing
+        const words = item.text.split(/\s+/);
+        const averageWordDuration = 300; // milliseconds per word
+        
+        words.forEach((word, index) => {
+          setTimeout(() => {
+            onSpeechEvent?.({ type: 'boundary', value: word });
+          }, index * averageWordDuration);
+        });
+
+        // Play the audio
+        await playAudioBuffer(item.audioBuffer);
+        
+        // Remove the played item
+        audioQueueRef.current.shift();
+        
+        // Small pause between chunks
+        await new Promise(resolve => setTimeout(resolve, 300));
       } catch (error) {
-        console.error('Failed to stop recognition:', error);
+        console.error('Error processing audio:', error);
+        audioQueueRef.current.shift(); // Remove failed item
       }
+    }
+
+    isSpeakingRef.current = false;
+    setIsSpeaking(false);
+    onSpeechEvent?.({ type: 'end' });
+    onStateChange?.('idle');
+    startListeningWithDelay();
+  };
+
+  // Handle AI response
+  useEffect(() => {
+    if (!lastResponse || !isActive || isProcessing) return;
+
+    const textChunks = splitTextIntoChunks(lastResponse);
+    
+    // Reset the queue
+    audioQueueRef.current = textChunks.map(text => ({ text }));
+    
+    // Stop listening while speaking
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+
+    // Start processing the queue
+    processAudioQueue();
+
+    return () => {
+      // Cleanup
+      if (currentAudioSourceRef.current) {
+        currentAudioSourceRef.current.stop();
+      }
+      setIsSpeaking(false);
+    };
+  }, [lastResponse, isActive, isProcessing]);
+
+  // Handle conversation toggle
+  const toggleConversation = async () => {
+    if (isActive) {
+      setIsActive(false);
+      setIsSpeaking(false);
+      if (currentAudioSourceRef.current) {
+        currentAudioSourceRef.current.stop();
+      }
+      onStateChange?.('idle');
+    } else {
+      setIsActive(true);
+      startListening();
     }
   };
 
@@ -108,24 +296,22 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         .map((result: any) => result[0].transcript)
         .join(' ');
       
-      // Only process the transcript if we're not speaking
-      if (!isSpeaking) {
-        // Update current transcript for display
-        setCurrentTranscript(transcript);
-        
-        // Only send final results to the AI
-        if (event.results[0].isFinal && transcript.trim()) {
-          onTranscript(transcript.trim());
-          setCurrentTranscript('');
-          onStateChange?.('thinking');
-        }
+      // Always update the current transcript for display
+      setCurrentTranscript(transcript);
+      
+      // Only send final results to the AI if we're not speaking
+      if (event.results[0].isFinal && transcript.trim() && !isSpeaking) {
+        onTranscript(transcript.trim());
+        setCurrentTranscript('');
+        onStateChange?.('thinking');
       }
     };
 
     recognition.onend = () => {
-      if (isActive && !isProcessing) {
+      // Only restart recognition if active and not processing or speaking
+      if (isActive && !isProcessing && !isSpeaking) {
         // Small delay before restarting
-        setTimeout(startListening, 100);
+        setTimeout(startListening, 300);
       }
     };
 
@@ -138,136 +324,88 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
     };
   }, [isActive, isProcessing, onTranscript, onStateChange, isSpeaking]);
 
-  // Handle AI response
-  useEffect(() => {
-    if (!lastResponse || !isActive || isProcessing) return;
-
-    const textChunks = splitTextIntoChunks(lastResponse);
-    let currentChunkIndex = 0;
-
-    const speakNextChunk = () => {
-      if (currentChunkIndex >= textChunks.length) {
-        setIsSpeaking(false);
-        startListeningWithDelay();
-        return;
-      }
-
-      const utterance = new SpeechSynthesisUtterance(textChunks[currentChunkIndex]);
-      
-      // Get available voices
-      const voices = window.speechSynthesis.getVoices();
-      const voice = voices.find(v => 
-        v.name.includes('Female') || 
-        v.name.includes('Samantha') || 
-        v.name.includes('Google UK English Female')
-      );
-      
-      if (voice) {
-        utterance.voice = voice;
-      }
-
-      utterance.rate = 0.9; // Slightly slower for better clarity
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-        onStateChange?.('speaking');
-      };
-
-      utterance.onend = () => {
-        currentChunkIndex++;
-        if (currentChunkIndex < textChunks.length) {
-          setTimeout(() => speakNextChunk(), 300); // Add small pause between chunks
-        } else {
-          setIsSpeaking(false);
-          startListeningWithDelay();
-        }
-        synthesisRef.current = null;
-      };
-
-      utterance.onerror = (event) => {
-        console.error('Synthesis error:', event);
-        currentChunkIndex++;
-        if (currentChunkIndex < textChunks.length) {
-          setTimeout(() => speakNextChunk(), 500);
-        } else {
-          setIsSpeaking(false);
-          startListeningWithDelay();
-        }
-        synthesisRef.current = null;
-      };
-
-      // Stop listening while speaking
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-
-      window.speechSynthesis.cancel();
-      
-      setTimeout(() => {
-        try {
-          window.speechSynthesis.speak(utterance);
-          synthesisRef.current = utterance;
-        } catch (error) {
-          console.error('Speech synthesis error:', error);
-          setIsSpeaking(false);
-        }
-      }, 100);
-    };
-
-    speakNextChunk();
-
-    return () => {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-    };
-  }, [lastResponse, isActive, isProcessing, onStateChange]);
-
-  // Handle conversation toggle
-  const toggleConversation = async () => {
-    if (isActive) {
-      setIsActive(false);
-      setIsSpeaking(false);
-      stopListening();
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-      onStateChange?.('idle');
-    } else {
-      setIsActive(true);
-      startListening();
-    }
-  };
-
   return (
-    <div className="flex flex-col items-center justify-center gap-4 voice-input-container">
-      {isActive && !isProcessing && currentTranscript && (
-        <div className="text-lg text-gray-700 bg-gray-100 rounded-lg p-4 min-h-[50px] w-full max-w-2xl text-center">
-          {currentTranscript}
+    <div className="relative">
+      {/* Transcript Overlay - improved for mobile */}
+      {isActive && !isProcessing && currentTranscript && !isSpeaking && (
+        <div className="absolute -top-[4.5rem] md:-top-20 left-1/2 -translate-x-1/2 w-[90vw] max-w-3xl px-4 z-10">
+          <div className="bg-black/60 backdrop-blur-sm text-white rounded-xl p-3 text-center">
+            <p className="text-sm font-medium whitespace-normal break-words leading-relaxed">
+              {currentTranscript}
+            </p>
+          </div>
         </div>
       )}
-      <Button
-        size="lg"
-        variant={isActive ? "destructive" : "default"}
-        onClick={toggleConversation}
-        disabled={isProcessing}
-        className={`transition-all ${
-          isActive ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
-        }`}
-      >
-        {isActive ? (
-          <>
-            <PhoneOff className="h-5 w-5 mr-2" />
-            {isProcessing ? 'Processing...' : 'End Session'}
-          </>
-        ) : (
-          <>
-            <PhoneCall className="h-5 w-5 mr-2" />
-            Start Session
-          </>
+
+      {/* Status Message - improved for mobile */}
+      {isActive && (isSpeaking || isProcessing) && (
+        <div className="absolute -top-[4.5rem] md:-top-20 left-1/2 -translate-x-1/2 w-[90vw] max-w-3xl px-4 z-10">
+          <div className="bg-black/60 backdrop-blur-sm text-white rounded-xl p-3 text-center">
+            <p className="text-sm font-medium whitespace-normal">
+              {isSpeaking ? "Listening will resume after response" : "Processing your message..."}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Button - improved for mobile and more professional */}
+      <div className="fixed bottom-4 md:bottom-8 right-4 md:right-8 z-[100]">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="default"
+                onClick={toggleConversation}
+                disabled={isProcessing}
+                className={`relative group h-12 w-12 md:h-14 md:w-14 rounded-full shadow-xl transition-all duration-300 ${
+                  isActive 
+                    ? 'bg-red-500/90 hover:bg-red-600 text-white' 
+                    : 'bg-emerald-500/90 hover:bg-emerald-600 text-white'
+                }`}
+              >
+                <div className="relative z-10">
+                  {isActive ? (
+                    <VideoOff className="h-5 w-5 md:h-6 md:w-6" />
+                  ) : (
+                    <Mic className="h-5 w-5 md:h-6 md:w-6" />
+                  )}
+                </div>
+
+                {/* Subtle glow effect */}
+                <div className={`absolute inset-0 rounded-full transition-opacity duration-300 ${
+                  isActive ? 'bg-red-500' : 'bg-emerald-500'
+                } opacity-0 group-hover:opacity-20 blur-sm`} />
+
+                {/* Subtle pulse for active state */}
+                {isActive && (
+                  <div className="absolute -inset-0.5 rounded-full animate-pulse opacity-20 bg-white/20" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent 
+              side="left"
+              className="bg-white/95 backdrop-blur-sm border border-white/20 px-3 py-1.5 text-sm font-medium text-slate-800 shadow-xl"
+            >
+              {isActive ? 'End Voice Session' : 'Start Voice Session'}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        {/* More subtle processing indicator */}
+        {isActive && (
+          <div className="absolute -top-1 -right-1">
+            <span className="relative flex h-3 w-3">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-60 ${
+                isProcessing ? 'bg-amber-400' : 'bg-emerald-400'
+              }`} />
+              <span className={`relative inline-flex rounded-full h-3 w-3 ${
+                isProcessing ? 'bg-amber-500' : 'bg-emerald-500'
+              }`} />
+            </span>
+          </div>
         )}
-      </Button>
+      </div>
     </div>
   );
 };

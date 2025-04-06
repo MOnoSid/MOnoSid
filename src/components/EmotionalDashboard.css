@@ -41,19 +41,16 @@
 }
 
 .score-circle {
-  width: 120px;
-  height: 120px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
-  margin: 1rem auto;
+  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2rem;
-  font-weight: bold;
-  color: white;
   background: conic-gradient(
-    #4f46e5 var(--score),
-    #e5e7eb var(--score)
+    rgb(79, 70, 229) calc(var(--score) * 1%),
+    #f3f4f6 0
   );
   position: relative;
 }
@@ -61,17 +58,15 @@
 .score-circle::before {
   content: '';
   position: absolute;
-  width: 100px;
-  height: 100px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
-  background: white;
+  background-color: white;
 }
 
 .score-circle span {
   position: relative;
-  z-index: 1;
-  color: #4f46e5;
-  font-weight: 700;
+  z-index: 2;
 }
 
 .insights-list {
@@ -141,14 +136,13 @@
   }
 
   .score-circle {
-    width: 100px;
-    height: 100px;
-    font-size: 1.75rem;
+    width: 80px;
+    height: 80px;
   }
 
   .score-circle::before {
-    width: 84px;
-    height: 84px;
+    width: 64px;
+    height: 64px;
   }
 
   .coping-strategies {
@@ -174,4 +168,74 @@
 .insights-card,
 .insight-item {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes blob {
+  0% {
+    transform: scale(1);
+  }
+  33% {
+    transform: scale(1.1);
+  }
+  66% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+/* Dashboard Toggle Button */
+.dashboard-toggle-button {
+  transition: all 0.3s ease;
+}
+
+.dashboard-toggle-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 10px rgba(79, 70, 229, 0.3);
+}
+
+/* Dashboard Panel on Mobile */
+@media (max-width: 768px) {
+  .dashboard-panel {
+    height: calc(100vh - 120px);
+    top: 60px;
+  }
+  
+  .score-circle {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .score-circle::before {
+    width: 64px;
+    height: 64px;
+  }
+}
+
+/* Fix z-index issues to ensure dashboard appears above other elements */
+.dashboard-panel {
+  z-index: 50;
+}
+
+.dashboard-toggle-button {
+  z-index: 51;
 }
