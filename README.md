@@ -1,69 +1,152 @@
-# Welcome to your Lovable project
+# MonoSid - AI Therapy Companion
 
-## Project info
+MonoSid is an innovative AI-powered therapy companion that combines real-time video interaction, natural language processing, emotion detection, and a lifelike digital avatar to provide a supportive and engaging therapeutic experience.
 
-**URL**: https://lovable.dev/projects/a2878767-02bc-4992-a3aa-001a697b1209
+## 🌟 Features
 
-## How can I edit this code?
+### Core Features
 
-There are several ways of editing your application.
+* Real-time video conversations with emotion detection
+* Lifelike 3D digital avatar with facial expressions (Beta)
+* Continuous voice conversation capability
+* Natural language understanding and empathetic responses
+* Real-time emotion analysis and adaptive responses
 
-**Use Lovable**
+### Advanced Capabilities
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/a2878767-02bc-4992-a3aa-001a697b1209) and start prompting.
+* **Digital Avatar**:  
+   * Realistic 3D avatar powered by ReadyPlayerMe  
+   * Dynamic facial expressions matching conversation emotions  
+   * Smooth transitions between expressions  
+   * Professional appearance and demeanor
+* **Emotion Detection**:  
+   * Real-time facial expression analysis  
+   * Emotional state tracking  
+   * Adaptive therapeutic responses
+* **Continuous Conversation**:  
+   * Natural, flowing conversations  
+   * No need to click for each response  
+   * Automatic speech detection  
+   * Seamless turn-taking
+* **Multilingual Support**:  
+   * English, Spanish, French, German  
+   * Italian, Japanese, Korean, Chinese  
+   * Real-time translation  
+   * Voice synthesis in multiple languages
+* **Session Management**:  
+   * Image capture functionality  
+   * Session notes and insights  
+   * Emotion tracking over time  
+   * Progress monitoring
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🚀 Installation
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
+1. Clone the repository:
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+git clone https://github.com/MOnoSid/MOnoSid.git
+cd MOnoSid
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. Install required packages:
+```sh
+npm install
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+3. Set up environment variables: Create a `.env` file with:
+```
+GOOGLE_API_KEY=your_google_api_key
+READY_PLAYER_ME_API_KEY=your_readyplayer_api_key
+VITE_APP_ENV=development
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+## 🎮 Usage
+
+1. Start the application:
+```sh
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+2. Open your browser:
+```
+http://localhost:5173
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+3. Interaction Modes:
+* **Video Mode**: Face-to-face conversations with emotion detection
+* **Avatar Mode**: Interact with Sky's realistic 3D avatar (Under Development)
+* **Voice Mode**: Natural voice conversations with continuous dialogue
 
-**Use GitHub Codespaces**
+4. Features:
+* Click "Start Session" to begin
+* Use "Voice Input" for continuous conversation
+* Switch between video and avatar views
+* Watch the avatar respond with appropriate expressions
+* End session anytime with "stop conversation" command
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🏗️ Project Structure
 
-## What technologies are used for this project?
+```
+.
+├── src/               # Source code
+│   ├── components/    # UI components
+│   ├── contexts/      # React contexts
+│   ├── hooks/         # Custom React hooks
+│   ├── lib/           # Core library functions
+│   ├── pages/         # Application pages
+│   ├── styles/        # CSS styles
+│   ├── utils/         # Utility functions
+│   └── App.tsx        # Main application component
+├── public/            # Static assets
+├── index.html         # HTML entry point
+├── package.json       # Dependencies
+├── tsconfig.json      # TypeScript configuration
+└── vite.config.ts     # Vite configuration
+```
 
-This project is built with .
+## 🔧 Dependencies
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+* React: UI framework
+* Three.js: 3D rendering
+* Google Generative AI: Natural language processing
+* ReadyPlayerMe SDK: 3D avatar generation
+* TensorFlow.js: Facial landmark detection
+* WebRTC: Real-time communication
+* Tailwind CSS: Styling
 
-## How can I deploy this project?
+## 🌐 Browser Support
 
-Simply open [Lovable](https://lovable.dev/projects/a2878767-02bc-4992-a3aa-001a697b1209) and click on Share -> Publish.
+* Chrome (recommended)
+* Firefox
+* Edge
+* Safari
 
-## I want to use a custom domain - is that possible?
+## 🔒 Privacy & Security
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+* All sessions are private and not recorded
+* Data is processed locally
+* Secure avatar generation and rendering
+* No persistent data storage
+* GDPR compliant data handling
+
+## ⚠️ Note on Digital Avatar (Under Development)
+
+The digital avatar feature is currently in beta and under active development. Current limitations:
+
+* Avatar generation may take a few moments
+* Some expressions are still being refined
+* Occasional animation transitions may need smoothing
+* More customization options coming soon
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit issues, fork the repository, and create pull requests for any improvements.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+* ReadyPlayerMe for the 3D avatar technology
+* Google for the Generative AI capabilities
+* The open-source community for various tools and libraries
