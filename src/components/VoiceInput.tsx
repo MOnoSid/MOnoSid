@@ -8,12 +8,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import './VoiceInput.css'; // Import CSS for responsive styles
-
+import { ZyphraClient } from '@zyphra/client';
 const MAX_UTTERANCE_LENGTH = 300; // Increased for ElevenLabs
 
 // ElevenLabs configuration - use import.meta.env for Vite/Next.js
 const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY || '';
-const VOICE_ID = '56AoDkrOh6qfVPDXZ7Pt'; //56AoDkrOh6qfVPDXZ7Pt
+const VOICE_ID = 'XeomjLZoU5rr4yNIg16w'; //56AoDkrOh6qfVPDXZ7Pt
 
 // Add TypeScript interfaces
 interface AudioContextWithWebkit extends AudioContext {
@@ -48,13 +48,34 @@ const splitTextIntoChunks = (text: string): string[] => {
   return chunks;
 };
 
+// Function to get available languages
+const getAvailableLanguages = async (): Promise<string[]> => {
+  if (!window.speechSynthesis) return [];
+  
+  // Wait for voices to be loaded
+  if (speechSynthesis.getVoices().length === 0) {
+    await new Promise(resolve => {
+      speechSynthesis.addEventListener('voiceschanged', resolve, { once: true });
+    });
+  }
+
+  // Get all available voices
+  const voices = speechSynthesis.getVoices();
+  
+  // Extract unique language codes
+  const languages = [...new Set(voices.map(voice => voice.lang))];
+  
+  return languages.sort();
+};
+
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
   isProcessing: boolean;
   lastResponse?: string;
   onStateChange?: (state: 'idle' | 'listening' | 'speaking' | 'thinking') => void;
   onSpeechEvent?: (event: { type: 'start' | 'end' | 'boundary' | 'error', value?: string }) => void;
-  autoStart?: boolean; // New prop to control auto-start behavior
+  autoStart?: boolean;
+  language?: string;
 }
 
 const VoiceInput: React.FC<VoiceInputProps> = ({
@@ -63,11 +84,13 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
   lastResponse,
   onStateChange,
   onSpeechEvent,
-  autoStart = false // Default to false - don't auto-start
+  autoStart = false,
+  language = ''
 }) => {
   const [isActive, setIsActive] = useState(autoStart);
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [detectedLanguage, setDetectedLanguage] = useState<string>('');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<AudioQueueItem[]>([]);
@@ -103,7 +126,17 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = true;
-        recognition.lang = 'en-US';
+        recognition.lang = language;
+        recognition.maxAlternatives = 1;
+
+        // Add language detection handler
+        recognition.onlanguagechange = (event: any) => {
+          if (event.language) {
+            setDetectedLanguage(event.language);
+            console.log('Detected language:', event.language);
+          }
+        };
+
         recognitionRef.current = recognition;
       }
     }
@@ -117,8 +150,9 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
       }
       setCurrentTranscript('');
     };
-  }, []);
+  }, [language]);
 
+  
   // ElevenLabs TTS function
   const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
     if (!ELEVENLABS_API_KEY) {
@@ -154,34 +188,6 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
     return await response.arrayBuffer();
   };
 
-  // Function to play audio buffer
-  const playAudioBuffer = async (audioBuffer: ArrayBuffer) => {
-    if (!audioContextRef.current) return;
-
-    try {
-      const buffer = await audioContextRef.current.decodeAudioData(audioBuffer);
-      const source = audioContextRef.current.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioContextRef.current.destination);
-      
-      currentAudioSourceRef.current = source;
-
-      return new Promise<void>((resolve, reject) => {
-        source.addEventListener('ended', () => {
-          currentAudioSourceRef.current = null;
-          resolve();
-        });
-        source.addEventListener('error', (error) => {
-          reject(error);
-        });
-        source.start(0);
-      });
-    } catch (error) {
-      console.error('Error playing audio:', error);
-      throw error;
-    }
-  };
-
   // Process the audio queue
   const processAudioQueue = async () => {
     if (audioQueueRef.current.length === 0 || isSpeakingRef.current) {
@@ -201,20 +207,49 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
           item.audioBuffer = await generateSpeech(item.text);
         }
 
+        // Decode the audio buffer before starting playback
+        if (!audioContextRef.current) return;
+        const buffer = await audioContextRef.current.decodeAudioData(item.audioBuffer);
+        const source = audioContextRef.current.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContextRef.current.destination);
+        
+        currentAudioSourceRef.current = source;
+
+        // Calculate word timings based on audio duration
+        const words = item.text.split(/\s+/);
+        const audioDuration = buffer.duration * 1000; // Convert to milliseconds
+        const averageWordDuration = audioDuration / words.length;
+        
+        // Set up the 'ended' event handler before starting playback
+        const playbackPromise = new Promise<void>((resolve, reject) => {
+          source.addEventListener('ended', () => {
+            currentAudioSourceRef.current = null;
+            resolve();
+          });
+          source.addEventListener('error', (error) => {
+            reject(error);
+          });
+        });
+
+        // Emit start event just before audio playback
         onSpeechEvent?.({ type: 'start' });
         
-        // Emit word boundary events based on timing
-        const words = item.text.split(/\s+/);
-        const averageWordDuration = 300; // milliseconds per word
+        // Add a small delay to ensure the avatar has time to prepare for lip-sync
+        await new Promise(resolve => setTimeout(resolve, 100));
         
+        // Start audio playback
+        source.start(0);
+        
+        // Schedule word boundary events based on audio timing
         words.forEach((word, index) => {
           setTimeout(() => {
             onSpeechEvent?.({ type: 'boundary', value: word });
           }, index * averageWordDuration);
         });
-
-        // Play the audio
-        await playAudioBuffer(item.audioBuffer);
+        
+        // Wait for audio playback to complete
+        await playbackPromise;
         
         // Remove the played item
         audioQueueRef.current.shift();
@@ -293,7 +328,14 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
 
     recognition.onresult = (event) => {
       const transcript = Array.from(event.results)
-        .map((result: any) => result[0].transcript)
+        .map((result: any) => {
+          // Log detected language from the result
+          if (result[0].lang) {
+            setDetectedLanguage(result[0].lang);
+            console.log('Speech recognized in:', result[0].lang);
+          }
+          return result[0].transcript;
+        })
         .join(' ');
       
       // Always update the current transcript for display
@@ -338,12 +380,19 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
       )}
 
       {/* Status Message - improved for mobile */}
-      {isActive && (isSpeaking || isProcessing) && (
+      {isActive && (isSpeaking || isProcessing || currentTranscript) && (
         <div className="absolute -top-[4.5rem] md:-top-20 left-1/2 -translate-x-1/2 w-[90vw] max-w-3xl px-4 z-10">
-          <div className="bg-black/60 backdrop-blur-sm text-white rounded-xl p-3 text-center">
+          <div className="bg-black/60 backdrop-blur-sm text-white rounded-xl p-3 text-center flex flex-col gap-1">
             <p className="text-sm font-medium whitespace-normal">
-              {isSpeaking ? "Listening will resume after response" : "Processing your message..."}
+              {isSpeaking ? "Listening will resume after response" : 
+               isProcessing ? "Processing your message..." : 
+               "Listening..."}
             </p>
+            {detectedLanguage && (
+              <p className="text-xs text-white/70">
+                Detected Language: {new Intl.DisplayNames([navigator.language], { type: 'language' }).of(detectedLanguage)}
+              </p>
+            )}
           </div>
         </div>
       )}

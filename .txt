@@ -1,0 +1,6 @@
+vercel env ls 
+
+vercel env rm <name> <environment>
+
+vercel env add <name> <environment>
+
